@@ -42,9 +42,12 @@ DJANGO_APPS = [
     'django.contrib.staticfiles',
 ]
 
-THIRD_PARTY_APPS = ['rest_framework', 'django_celery_beat']
+THIRD_PARTY_APPS = ['rest_framework', 'django_celery_beat', ]
 
-CUSTOM_APPS = []
+CUSTOM_APPS = [
+    'apps.account.apps.AccountConfig',
+    'apps.core.apps.CoreConfig',
+]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + CUSTOM_APPS
 
@@ -155,4 +158,13 @@ CACHES = {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": "redis://redis:6379/0"
     }
+}
+
+AUTH_USER_MODEL = "account.CustomUser"
+
+# REST FRAMEWORK
+REST_FRAMEWORK = {
+    "DEFAULT_VERSIONING_CLASS": "apps.core.versioning.CustomUrlPathVersioning",
+    "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework.authentication.SessionAuthentication",),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
 }
