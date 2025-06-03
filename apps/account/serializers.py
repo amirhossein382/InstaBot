@@ -1,16 +1,4 @@
-from django.contrib.auth import get_user_model
-
 from rest_framework import serializers
-
-from apps.core.serializers import DynamicFieldsModelSerializer
-
-User = get_user_model()
-
-
-class UserSerializer(DynamicFieldsModelSerializer):
-    class Meta:
-        model = User
-        fields = "__all__"
 
 
 class DeviceSettingsSerializer(serializers.Serializer):
