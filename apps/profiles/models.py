@@ -1,14 +1,12 @@
 from django.db import models
-from django.contrib.auth import get_user_model
 
+from apps.account.models import InstagramAccount
 from apps.core.models import BaseInstagramUser
 from apps.enums import FollowerChangeStatusEnum
 
-User = get_user_model()
-
 
 class Profile(BaseInstagramUser):
-    user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE)
+    account = models.OneToOneField(InstagramAccount, on_delete=models.CASCADE, related_name="profile")
     user_pk = models.UUIDField(unique=True)
     external_url = models.URLField(null=True, blank=True)
     media_count = models.IntegerField(default=0)
@@ -24,23 +22,23 @@ class Profile(BaseInstagramUser):
 
 
 class Follower(BaseInstagramUser):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="followers")
+    account = models.ForeignKey(InstagramAccount, on_delete=models.CASCADE, related_name="followers")
     user_pk = models.BigIntegerField(unique=True)
 
     class Meta:
-        unique_together = (['user', 'user_pk'])
+        unique_together = (['account', 'user_pk'])
 
 
 class Following(BaseInstagramUser):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="followings")
+    account = models.ForeignKey(InstagramAccount, on_delete=models.CASCADE, related_name="followings")
     user_pk = models.BigIntegerField(unique=True)
 
     class Meta:
-        unique_together = (['user', 'user_pk'])
+        unique_together = (['account', 'user_pk'])
 
 
 class FollowerChange(BaseInstagramUser):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="follower_changes")
+    account = models.ForeignKey(InstagramAccount, on_delete=models.CASCADE, related_name="follower_changes")
     user_pk = models.BigIntegerField(unique=True)
     change_type = models.CharField(max_length=20, choices=FollowerChangeStatusEnum.CHOICES)
 
@@ -48,4 +46,17 @@ class FollowerChange(BaseInstagramUser):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = (["user", "user_pk", "change_type"])
+        unique_together = (["account", "user_pk", "change_type"])
+        ordering = ['-created_at']
+
+
+class AccountGrowthLog(models.Model):
+    account = models.ForeignKey(InstagramAccount, on_delete=models.CASCADE, related_name="growth_logs")
+    date = models.DateField()
+    followers_count = models.IntegerField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('account', 'date')
+        ordering = ['-date']

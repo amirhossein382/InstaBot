@@ -3,6 +3,7 @@ import json
 from django.contrib.auth import get_user_model
 from instagrapi import Client
 
+from .models import InstagramAccount
 from .exceptions import UserUnActiveException, BadPassword
 
 
@@ -40,9 +41,9 @@ class AccountService:
     def __init__(self):
         self.client.delay_range = range(1, 3)
 
-    def get_client_by_user_id(self, user_id):
-        user = self.User.objects.get(pk=user_id)
-        self.client.set_settings(json.loads(user.client_settings))
+    def get_client_by_user_id(self, account_id):
+        account = InstagramAccount.objects.get(pk=account_id)
+        self.client.set_settings(json.loads(account.client_settings))
         return self.client
 
     def login_by_user_pass(self, username, password, device):
@@ -52,8 +53,9 @@ class AccountService:
                 if not user.is_acitve:
                     raise UserUnActiveException()
 
-                self.client.set_device(device=json.loads(user.client_settings["device_settings"]))
-                self.client.set_user_agent(json.loads(user.client_settings["user_agent"]))
+                account = InstagramAccount.objects.get(user=user)
+                self.client.set_device(device=json.loads(account.client_settings["device_settings"]))
+                self.client.set_user_agent(json.loads(account.client_settings["user_agent"]))
 
             else:
                 raise BadPassword("Your account password is wrong!")
