@@ -32,7 +32,7 @@ def analyze_and_update_follow_data(self, account_id):
         return
 
     try:
-        account = InstagramAccount.objects.get(pk=account_id)
+        account = InstagramAccount.objects.select_related("user").get(pk=account_id)
         if not account.user.is_authenticated:
             profile_svc.config.delete_analyze_update_follow_data_periodic_task(account_id)
             profile_svc.config.delete_analyze_growth_logs_periodic_task(account_id)
@@ -147,7 +147,7 @@ def analyze_and_update_follow_data(self, account_id):
                 ]
                 Follower.objects.bulk_create(new_follower_objs, ignore_conflicts=True)
 
-                # add new followings
+                # Add new followings
                 new_following_objs = [
                     Following(
                         account=account,
@@ -160,7 +160,7 @@ def analyze_and_update_follow_data(self, account_id):
                 ]
                 Following.objects.bulk_create(new_following_objs, ignore_conflicts=True)
 
-                # remove expire follower, following
+                # Remove expire follower, following
                 if unfollowers_set:
                     Follower.objects.filter(account=account, user_pk__in=unfollowers_set).delete()
                 if unfollowings_set:
