@@ -61,6 +61,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.core.middleware.PopulateLocalsThreadMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -169,4 +170,27 @@ REST_FRAMEWORK = {
     "DEFAULT_VERSIONING_CLASS": "apps.core.versioning.CustomUrlPathVersioning",
     "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework.authentication.SessionAuthentication",),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+}
+
+# LOGGING Settings
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "%(asctime)s %(process)d %(thread)d %(message)s"
+        }
+    },
+    "loggers": {
+        "InstaBot": {
+            "handlers": ["django_streamlog"],
+            "level": "INFO"
+        }
+    },
+    "handlers": {
+        "django_streamlog": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        }
+    }
 }

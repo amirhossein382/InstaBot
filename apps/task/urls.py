@@ -4,5 +4,5 @@ from .views import MediaTaskListView, MediaTaskDetailView
 
 urlpatterns = [
     path("", MediaTaskListView.as_view(), name="media_tasks"),
-    path("<pk:int>/", MediaTaskDetailView.as_view(), name="media_task_detail"),
+    path("<int:pk>/", MediaTaskDetailView.as_view(), name="media_task_detail"),
 ]
