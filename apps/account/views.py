@@ -59,9 +59,12 @@ class LoginView(APIView):
                     "password": make_password(serializer.validated_data['password']),
                 }
             )
-            account, account_created = InstagramAccount.objects.get_or_create(
+            account, account_created = InstagramAccount.objects.update_or_create(
                 user=user,
                 defaults={
+                    "client_settings": json.dumps(client.get_settings()),
+                },
+                create_defaults={
                     "client_settings": json.dumps(client.get_settings()),
                     "client_pk": client.user_id
                 }

@@ -56,6 +56,7 @@ class AccountService:
                 account = InstagramAccount.objects.get(user=user)
                 self.client.set_device(device=json.loads(account.client_settings["device_settings"]))
                 self.client.set_user_agent(json.loads(account.client_settings["user_agent"]))
+                self.client.set_uuids(json.loads(account.client_settings["uuids"]))
 
             else:
                 raise BadPassword("Your account password is wrong!")
