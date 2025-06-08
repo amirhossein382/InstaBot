@@ -10,7 +10,7 @@ from .models import MediaTask
 from .serializers import MediaTaskSerializer
 
 
-class MediaTaskListView(views.APIView):
+class MediaTaskListCreateView(views.APIView):
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = MediaTaskSerializer
 
