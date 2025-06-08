@@ -1,5 +1,6 @@
 import json
 
+from django.utils import timezone
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from apps.account.services import AccountService
@@ -9,6 +10,7 @@ from .models import FollowerChange
 
 
 class ProfileConfig:
+    task_expire_time = 3600  # 1 hour
     update_follow_task = "analyze_follow_data_user_{account_id}"
     growth_data_task = "analyze_account_growth_logs_{account_id}"
 
@@ -25,6 +27,8 @@ class ProfileConfig:
                 task="apps.profiles.tasks.analyze_account_growth_logs",
                 args=json.dumps([account_id]),
                 enabled=True,
+                expires=self.task_expire_time,
+                start_time=timezone.now()
             )
 
     def delete_analyze_growth_logs_periodic_task(self, account_id):
@@ -37,8 +41,8 @@ class ProfileConfig:
 
     def create_analyze_update_follow_data_periodic_task(self, account_id):
         schedule, created = IntervalSchedule.objects.get_or_create(
-            every=2,  # TODO: for test ... fix to 6 hours
-            period=IntervalSchedule.MINUTES,
+            every=3,
+            period=IntervalSchedule.HOURS,
         )
         task_name_ = self.update_follow_task.format(account_id=account_id)
         if not PeriodicTask.objects.filter(name=task_name_).exists():
@@ -48,6 +52,7 @@ class ProfileConfig:
                 task="apps.profiles.tasks.analyze_and_update_follow_data",
                 args=json.dumps([account_id]),
                 enabled=True,
+                expires=self.task_expire_time
             )
 
     def delete_analyze_update_follow_data_periodic_task(self, account_id):
@@ -62,6 +67,7 @@ class ProfileConfig:
 class ProfileService:
     account_svc = AccountService()
     config = ProfileConfig()
+    batch_size = 1000
 
     def load_profile_info(self, account):
         self.account_svc.client.set_settings(json.loads(account.client_settings))
@@ -154,4 +160,4 @@ class ProfileService:
                 change_type=FollowerChangeStatusEnum.NOT_BACK
             ))
 
-        FollowerChange.objects.bulk_create(change_objects, batch_size=1000)
+        FollowerChange.objects.bulk_create(change_objects, batch_size=self.batch_size)

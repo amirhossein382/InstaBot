@@ -8,6 +8,7 @@ from rest_framework import status
 from rest_framework import permissions
 from rest_framework.views import APIView
 
+from apps.core.utils import Logger
 from apps.profiles.signals import profile_initialized
 from apps.profiles.services import ProfileService
 from .models import InstagramAccount
@@ -21,6 +22,7 @@ from .exceptions import (
 account_svc = AccountService()
 profile_svc = ProfileService()
 User = get_user_model()
+logger = Logger()
 
 
 class LoginView(APIView):
@@ -38,15 +40,19 @@ class LoginView(APIView):
                 device=serializer.validated_data["device_settings"]
             )
         except BadPassword as msg:
+            logger.log_event("login_failed",log_data=" login failed because bad password")
             return base_response_with_error(msg=str(msg), _status=status.HTTP_401_UNAUTHORIZED)
         except PleaseWaitFewMinutes as msg:
+            logger.log_event("login_failed", log_data=" login failed because throttled")
             return base_response_with_error(msg=str(msg), _status=status.HTTP_202_ACCEPTED)
         except LoginRequired:
+            logger.log_event("login_failed", log_data=" login failed because blocked")
             return base_response_with_error(
                 msg="Too many request, try after 30 minutes.",
                 _status=status.HTTP_400_BAD_REQUEST
             )
         except ChallengeRequired:
+            logger.log_event("login_failed", log_data=" login failed because challenge required")
             return base_response_with_error(
                 msg='Open your browser and login to your account for fix Challenge Required',
                 _status=status.HTTP_400_BAD_REQUEST
@@ -84,8 +90,8 @@ class LogoutView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request, *args, **kwargs):
-        logout(request)
-
+        logger.log_event("logout",log_data="user logged out")
+        logout(self.request)
         return Response({"detail": "Logged out successfully."}, status=status.HTTP_200_OK)
 
 
@@ -97,13 +103,16 @@ class AccountInitialView(APIView):
         account = InstagramAccount.objects.get(user=user)
         try:
             with transaction.atomic():
+                print("\nfetching profile..")
                 profile_svc.fetch_profile_info(account)
+                print("\nfetching followers..")
                 followers = profile_svc.fetch_followers(account)
+                print("\nfetching followings..")
                 followings = profile_svc.fetch_followings(account)
                 profile_svc.analyze_follower_changes(account=account, followers=followers, followings=followings)
         except Exception as e:
             return Response(data={"detail": f"Initialization failed: {str(e)}"},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        print("\nfetching done..")
         profile_initialized.send(sender=self.__class__, account=account)
         return Response(data="initialized successfully", status=status.HTTP_201_CREATED)

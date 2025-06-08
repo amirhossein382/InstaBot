@@ -2,7 +2,6 @@ import logging
 
 from django.db.models import Q
 from django.db import transaction
-from django.core.cache import cache
 from django.utils import timezone
 from celery import shared_task, Task
 
@@ -14,7 +13,6 @@ from .serializers import ProfileSerializer
 from .services import ProfileService
 
 profile_svc = ProfileService()
-LOCK_EXPIRE = 60 * 10
 logger = logging.getLogger(__name__)
 
 
@@ -26,29 +24,29 @@ class BaseRetryTask(Task):
 
 @shared_task(bind=True, base=BaseRetryTask)
 def analyze_and_update_follow_data(self, account_id):
-    lock_id = f"analyze-lock-{account_id}"
-    if not cache.add(lock_id, "LOCKED", LOCK_EXPIRE):
-        logger.warning(f"[{account_id}] Analysis task already running. Skipping.")
-        return
+    print("\nanalyze_and_update_follow_data task is running...")
 
     try:
         account = InstagramAccount.objects.select_related("user").get(pk=account_id)
         if not account.user.is_authenticated:
+            print(f"\nuser {account.user.username} is not authenticated!.\n deleting tasks for user...")
             profile_svc.config.delete_analyze_update_follow_data_periodic_task(account_id)
             profile_svc.config.delete_analyze_growth_logs_periodic_task(account_id)
             return
     except InstagramAccount().DoesNotExist:
+        print(f"\nuser does not exist!.\n deleting tasks for user...")
         profile_svc.config.delete_analyze_update_follow_data_periodic_task(account_id)
         profile_svc.config.delete_analyze_growth_logs_periodic_task(account_id)
     else:
         try:
+            print(f"\ngetting new data from instagram...")
             new_profile_info = profile_svc.load_profile_info(account)
             new_followers = profile_svc.load_followers(account)
             new_followings = profile_svc.load_followings(account)
 
         except PleaseWaitFewMinutes as e:
-            logger.warning(f"[{account_id}] Rate limited: delaying 1 hour")
-            raise self.retry(exc=e, countdown=3600)
+            logger.warning(f"[{account_id}] Rate limited: delaying 45 minutes")
+            raise self.retry(exc=e, countdown=2700)
         except LoginRequired as e:
             logger.exception(f"[{account_id}] Login required: {e}")
             profile_svc.config.delete_analyze_update_follow_data_periodic_task(account_id)
@@ -58,6 +56,7 @@ def analyze_and_update_follow_data(self, account_id):
             raise self.retry(exc=e)
 
         else:
+            print(f"\nanalyze instagram new data...")
             new_followers_dict = {item["user_pk"]: item for item in new_followers}
             new_followings_dict = {item["user_pk"]: item for item in new_followings}
 
@@ -106,10 +105,13 @@ def analyze_and_update_follow_data(self, account_id):
 
             with transaction.atomic():
                 # Update profile...
+                print(f"\nupdating user {account.user.username} profile info ...")
                 serializer = ProfileSerializer(instance=old_profile_info, data=new_profile_info)
                 if serializer.is_valid():
                     serializer.save()
+                    print(f"\nuser {account.user.username} profile info updated!")
 
+                print(f"\ndeleting user {account.user.username} expire changes...")
                 # Delete expired Changes...
                 FollowerChange.objects.filter(
                     Q(user_pk__in=unfollowers_set) | Q(user_pk__in=unfollowings_set),
@@ -131,9 +133,11 @@ def analyze_and_update_follow_data(self, account_id):
                     change_type=FollowerChangeStatusEnum.UNFOLLOW,
                     user_pk__in=new_followers_set
                 )
+                print(f"\nadding user {account.user.username} new changes...")
                 # Add new changes
                 FollowerChange.objects.bulk_create(changes, ignore_conflicts=True)
 
+                print(f"\nupdating user {account.user.username} new followers ...")
                 # Add new followers
                 new_follower_objs = [
                     Follower(
@@ -147,6 +151,7 @@ def analyze_and_update_follow_data(self, account_id):
                 ]
                 Follower.objects.bulk_create(new_follower_objs, ignore_conflicts=True)
 
+                print(f"\nupdating user {account.user.username} new followings ...")
                 # Add new followings
                 new_following_objs = [
                     Following(
@@ -160,6 +165,7 @@ def analyze_and_update_follow_data(self, account_id):
                 ]
                 Following.objects.bulk_create(new_following_objs, ignore_conflicts=True)
 
+                print(f"\ndeleting user {account.user.username} expire follower, followings ...")
                 # Remove expire follower, following
                 if unfollowers_set:
                     Follower.objects.filter(account=account, user_pk__in=unfollowers_set).delete()
@@ -169,9 +175,11 @@ def analyze_and_update_follow_data(self, account_id):
 
 @shared_task
 def analyze_account_growth_logs(account_id):
+    print(f"\nanalyze_account_growth_logs task is running...")
     account = InstagramAccount.objects.get(pk=account_id)
     profile = Profile.objects.get(account=account)
     today = timezone.datetime.today()
+    print(f"\nupdate or create growth log task...")
     AccountGrowthLog.objects.update_or_create(
         account=account,
         date=today,
