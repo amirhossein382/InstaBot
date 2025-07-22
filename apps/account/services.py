@@ -1,6 +1,8 @@
 import json
 
-from django.contrib.auth import get_user_model
+from django.utils import timezone
+from django.contrib.sessions.models import Session
+from django.contrib.auth import get_user_model, SESSION_KEY
 from instagrapi import Client
 
 from .models import InstagramAccount
@@ -41,22 +43,39 @@ class AccountService:
     def __init__(self):
         self.client.delay_range = range(1, 3)
 
+    @staticmethod
+    def logout_django_by_user(user):
+        sessions = Session.objects.filter(expire_date__gte=timezone.now())
+        for session in sessions:
+            data = session.get_decoded()
+            if data.get(SESSION_KEY) == str(user.id):
+                session.delete()
+
     def get_client_by_user_id(self, account_id):
         account = InstagramAccount.objects.get(pk=account_id)
         self.client.set_settings(json.loads(account.client_settings))
         return self.client
 
     def login_by_user_pass(self, username, password, device):
+        ig_settings_is_correct = False
         try:
             user = self.User.objects.get(username=username)
             if user.check_password(password):
-                if not user.is_acitve:
+                if not user.is_active:
                     raise UserUnActiveException()
 
                 account = InstagramAccount.objects.get(user=user)
-                self.client.set_device(device=json.loads(account.client_settings["device_settings"]))
-                self.client.set_user_agent(json.loads(account.client_settings["user_agent"]))
-                self.client.set_uuids(json.loads(account.client_settings["uuids"]))
+
+                try:
+                    self.client.set_settings(json.loads(account.client_settings))
+                    self.client.get_timeline_feed()
+                except Exception:
+                    self.client.settings = {}  # remove invalid settings
+                    self.client.set_device(device=json.loads(account.client_settings["device_settings"]))
+                    self.client.set_user_agent(json.loads(account.client_settings["user_agent"]))
+                    self.client.set_uuids(json.loads(account.client_settings["uuids"]))
+                else:
+                    ig_settings_is_correct = True
 
             else:
                 raise BadPassword("Your account password is wrong!")
@@ -67,6 +86,7 @@ class AccountService:
             self.client.set_device(device)
             self.client.set_user_agent(user_agent)
 
-        self.client.login(username=username, password=password)
+        if not ig_settings_is_correct:
+            self.client.login(username=username, password=password)
 
         return self.client

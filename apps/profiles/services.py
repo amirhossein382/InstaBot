@@ -4,6 +4,7 @@ from django.utils import timezone
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from apps.account.services import AccountService
+from apps.account.exceptions import LoginRequired
 from apps.enums import FollowerChangeStatusEnum
 from .serializers import FollowingSerializer, FollowerSerializer, ProfileSerializer
 from .models import FollowerChange
@@ -31,13 +32,17 @@ class ProfileConfig:
                 start_time=timezone.now()
             )
 
-    def delete_analyze_growth_logs_periodic_task(self, account_id):
+    def pause_or_resume_analyze_growth_logs_periodic_task(self, account_id, pause: bool):
         try:
             task = PeriodicTask.objects.get(nama=self.growth_data_task.format(account_id=account_id))
         except PeriodicTask.DoesNotExist:
             pass
         else:
-            task.delete()
+            if pause:
+                task.enabled = False
+            else:
+                task.enabled = True
+            task.save()
 
     def create_analyze_update_follow_data_periodic_task(self, account_id):
         schedule, created = IntervalSchedule.objects.get_or_create(
@@ -55,19 +60,31 @@ class ProfileConfig:
                 expires=self.task_expire_time
             )
 
-    def delete_analyze_update_follow_data_periodic_task(self, account_id):
+    def pause_or_resume_analyze_update_follow_data_periodic_task(self, account_id, pause: bool):
         try:
             task = PeriodicTask.objects.get(name=self.update_follow_task.format(account_id=account_id))
         except PeriodicTask.DoesNotExist:
             pass
         else:
-            task.delete()
+            if pause:
+                task.enabled = False
+            else:
+                task.enabled = True
+            task.save()
 
 
 class ProfileService:
     account_svc = AccountService()
     config = ProfileConfig()
     batch_size = 1000
+
+    def is_ig_authenticated(self, account):
+        self.account_svc.client.set_settings(json.loads(account.client_settings))
+        try:
+            self.account_svc.client.get_timeline_feed()
+            return True
+        except LoginRequired:
+            return False
 
     def load_profile_info(self, account):
         self.account_svc.client.set_settings(json.loads(account.client_settings))

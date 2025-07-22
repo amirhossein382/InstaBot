@@ -112,9 +112,9 @@ class AccountInitialView(APIView):
                 followings = profile_svc.fetch_followings(account)
                 profile_svc.analyze_follower_changes(account=account, followers=followers, followings=followings)
         except Exception as e:
-            logger.log_event(self.__class__, log_data="account initial failed!", level="ERROR")
+            logger.log_event(self.__class__, log_data=f"account initial failed --> {str(e)}", level="ERROR")
             return Response(data={"detail": f"Initialization failed: {str(e)}"},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         logger.log_event(self.__class__, log_data="account initial done")
-        profile_initialized.send(sender=self.__class__, account=account)
+        profile_initialized.send(sender=self.__class__, account_id=account.id)
         return Response(data="initialized successfully", status=status.HTTP_201_CREATED)
