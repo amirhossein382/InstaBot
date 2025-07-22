@@ -38,8 +38,8 @@ class MediaTask(BaseTimeStampedModel):
 
     @transition(field=state, source=TaskStateEnum.UPLOADING, target=TaskStateEnum.SUCCESS)
     def to_state_success(self):
-        return "State switched to success of success!"
+        return "State switched to success of uploading!"
 
     @transition(field=state, source=TaskStateEnum.UPLOADING, target=TaskStateEnum.FAILED)
     def to_state_failed(self):
-        return "State switched to success of failed!"
+        return "State switched to success of uploading!"

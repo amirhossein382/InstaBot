@@ -13,7 +13,7 @@ logger = Logger()
 @shared_task
 def upload_media_to_instagram(task_id):
     op = upload_media_to_instagram.__name__
-    logger.log_event(op, log_data="task is running...")
+    logger.log_event(op, log_data=f"task {task_id} is running...")
     task = MediaTask.objects.select_related("account").get(id=task_id)
     client = account_svc.get_client_by_user_id(task.account.id)
 
@@ -23,7 +23,7 @@ def upload_media_to_instagram(task_id):
         match task.task_type:
             case MediaTaskTypeEnum.POST:
                 if is_image(task.media_file.path):
-                    logger.log_event(op, "uploading photo to the post...")
+                    logger.log_event(op, f"uploading photo {task_id} to the post...")
                     client.photo_upload(
                         task.media_file.path,
                         task.caption,
@@ -33,7 +33,7 @@ def upload_media_to_instagram(task_id):
                         }
                     )
                 elif is_video(task.media_file.path):
-                    logger.log_event(op, "uploading video to the post...")
+                    logger.log_event(op, f"uploading video {task_id} to the post...")
                     client.video_upload(
                         task.media_file.path,
                         task.caption,
@@ -45,21 +45,21 @@ def upload_media_to_instagram(task_id):
 
             case MediaTaskTypeEnum.STORY:
                 if is_image(task.media_file.path):
-                    logger.log_event(op, "uploading photo to the story...")
+                    logger.log_event(op, f"uploading photo {task_id} to the story...")
                     client.photo_upload_to_story(
                         task.media_file.path,
                         task.caption,
 
                     )
                 elif is_video(task.media_file.path):
-                    logger.log_event(op, "uploading video to the story...")
+                    logger.log_event(op, f"uploading video {task_id} to the story...")
                     client.video_upload_to_story(
                         task.media_file.path,
                         task.caption,
                     )
 
     except Exception as e:
-        logger.log_event(op, "failed to upload media on story or post", level="ERROR")
+        logger.log_event(op, f"failed to upload media {task_id} on story or post", level="ERROR")
         task.error_message = str(e)
         task.to_state_failed()
         task.save()
@@ -67,4 +67,4 @@ def upload_media_to_instagram(task_id):
         task.posted_at = timezone.now()
         task.to_state_success()
         task.save()
-        logger.log_event(op, "media uploaded successfully to story or post.")
+        logger.log_event(op, f"media {task_id} uploaded successfully to story or post.")
