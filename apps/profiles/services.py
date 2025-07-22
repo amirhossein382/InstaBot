@@ -79,24 +79,24 @@ class ProfileService:
     batch_size = 1000
 
     def is_ig_authenticated(self, account):
-        self.account_svc.client.set_settings(json.loads(account.client_settings))
+        client = self.account_svc.config.get_account_client(account)
         try:
-            self.account_svc.client.get_timeline_feed()
+            client.get_timeline_feed()
             return True
         except LoginRequired:
             return False
 
     def load_profile_info(self, account):
-        self.account_svc.client.set_settings(json.loads(account.client_settings))
-        data = self.account_svc.client.user_info(account.client_pk).dict()
+        client = self.account_svc.config.get_account_client(account)
+        data = client.user_info(account.client_pk).dict()
         data["account"] = account.pk
         data["user_pk"] = int(data["pk"])
         data["profile_pic_url"] = str(data["profile_pic_url"])
         return data
 
     def load_followers(self, account) -> list[dict]:
-        self.account_svc.client.set_settings(json.loads(account.client_settings))
-        followers = self.account_svc.client.user_followers(str(account.client_pk)).values()
+        client = self.account_svc.config.get_account_client(account)
+        followers = client.user_followers(str(account.client_pk)).values()
         data = [{
             "account": account.pk,
             "user_pk": follower.pk,
@@ -108,8 +108,8 @@ class ProfileService:
         return data
 
     def load_followings(self, account) -> list[dict]:
-        self.account_svc.client.set_settings(json.loads(account.client_settings))
-        followings = self.account_svc.client.user_following(str(account.client_pk)).values()
+        client = self.account_svc.config.get_account_client(account)
+        followings = client.user_following(str(account.client_pk)).values()
         data = [{
             "account": account.pk,
             "user_pk": follower.pk,

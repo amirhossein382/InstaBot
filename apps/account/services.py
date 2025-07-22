@@ -20,6 +20,17 @@ class AccountConfig:
         "{model}; {device}; {cpu}; {locale}; {version_code})"
     )
 
+    @staticmethod
+    def get_client():
+        client = Client()
+        client.delay_range = range(1, 4)
+        return client
+
+    def get_account_client(self, account: InstagramAccount):
+        client = self.get_client()
+        client.set_settings(json.loads(account.client_settings))
+        return client
+
     def create_device_settings(self, device: dict):
         device = device
         device["app_version"] = self.app_version
@@ -38,10 +49,6 @@ class AccountConfig:
 class AccountService:
     User = get_user_model()
     config = AccountConfig()
-    client = Client()
-
-    def __init__(self):
-        self.client.delay_range = range(1, 3)
 
     @staticmethod
     def logout_django_by_user(user):
@@ -51,12 +58,8 @@ class AccountService:
             if data.get(SESSION_KEY) == str(user.id):
                 session.delete()
 
-    def get_client_by_user_id(self, account_id):
-        account = InstagramAccount.objects.get(pk=account_id)
-        self.client.set_settings(json.loads(account.client_settings))
-        return self.client
-
     def login_by_user_pass(self, username, password, device):
+        client = self.config.get_client()
         ig_settings_is_correct = False
         try:
             user = self.User.objects.get(username=username)
@@ -67,13 +70,13 @@ class AccountService:
                 account = InstagramAccount.objects.get(user=user)
 
                 try:
-                    self.client.set_settings(json.loads(account.client_settings))
-                    self.client.get_timeline_feed()
+                    client.set_settings(json.loads(account.client_settings))
+                    client.get_timeline_feed()
                 except Exception:
-                    self.client.settings = {}  # remove invalid settings
-                    self.client.set_device(device=json.loads(account.client_settings["device_settings"]))
-                    self.client.set_user_agent(json.loads(account.client_settings["user_agent"]))
-                    self.client.set_uuids(json.loads(account.client_settings["uuids"]))
+                    client.settings = {}  # remove invalid settings
+                    client.set_device(device=json.loads(account.client_settings["device_settings"]))
+                    client.set_user_agent(json.loads(account.client_settings["user_agent"]))
+                    client.set_uuids(json.loads(account.client_settings["uuids"]))
                 else:
                     ig_settings_is_correct = True
 
@@ -83,10 +86,10 @@ class AccountService:
         except self.User.DoesNotExist:
             device = self.config.create_device_settings(device)
             user_agent = self.config.create_user_agent(device)
-            self.client.set_device(device)
-            self.client.set_user_agent(user_agent)
+            client.set_device(device)
+            client.set_user_agent(user_agent)
 
         if not ig_settings_is_correct:
-            self.client.login(username=username, password=password)
+            client.login(username=username, password=password)
 
-        return self.client
+        return client
