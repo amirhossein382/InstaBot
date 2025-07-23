@@ -49,6 +49,7 @@ CUSTOM_APPS = [
     'apps.core.apps.CoreConfig',
     'apps.profiles.apps.ProfilesConfig',
     'apps.task.apps.TaskConfig',
+    'apps.notifications.apps.NotificationsConfig',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + CUSTOM_APPS
