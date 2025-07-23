@@ -1,9 +1,9 @@
 from django.db.models import Q
 from django.db import transaction
-from django.utils.timezone import datetime
+from django.utils import timezone
 from celery import shared_task, Task
 
-from apps.account.exceptions import PleaseWaitFewMinutes, LoginRequired
+from apps.account.exceptions import PleaseWaitFewMinutes, LoginRequired, ChallengeRequired, FeedbackRequired
 from apps.account.models import InstagramAccount
 from apps.core.utils import Logger
 from apps.enums import FollowerChangeStatusEnum
@@ -13,6 +13,7 @@ from .services import ProfileService
 
 profile_svc = ProfileService()
 logger = Logger()
+reenable_time = timezone.now() + timezone.timedelta(hours=12)
 
 
 class BaseRetryTask(Task):
@@ -42,18 +43,39 @@ def analyze_and_update_follow_data(self, account_id):
         new_followers = profile_svc.load_followers(account)
         new_followings = profile_svc.load_followings(account)
 
-    except PleaseWaitFewMinutes as e:
-        logger.log_event(op, f"Rate limited: delaying 45 minutes for user {account.user.id}", level="ERROR")
-        raise self.retry(exc=e, countdown=2700)
+    except PleaseWaitFewMinutes as err:
+        logger.log_event(op, f"Rate limited: delaying 1 hour for user {account.user.id} --> {str(err)}", level="ERROR")
+        raise self.retry(exc=err, countdown=3600)
 
-    except LoginRequired as e:
-        logger.log_event(op, f"Login required: {e} ---> pausing tasks for user {account.user.id}", level="ERROR")
+    except LoginRequired as err:
+        logger.log_event(op, f"Login required: {err} ---> pausing tasks for user {account.user.id}", level="ERROR")
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
-        return
-    except Exception as e:
-        logger.log_event(op, f"[{account_id}] Unhandled exception during analyze: {e}", level="ERROR")
-        raise self.retry(exc=e)
+        profile_svc.account_svc.logout_django_by_user(account.user)
+
+    except ChallengeRequired as err:
+        logger.log_event(op, log_data=f" getting new data failed because challenge required -> {str(err)}", level="ERROR")
+        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
+        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
+
+    except FeedbackRequired as err:
+        logger.log_event(
+            op, log_data=f" getting new data failed because feedback required -->{str(err)}",
+            level="ERROR"
+        )
+        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
+        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
+        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task.apply_async(
+            (account_id, False,), eta=reenable_time
+        )
+        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task.apply_async(
+            (account_id, False,), eta=reenable_time
+        )
+
+    except Exception as err:
+        logger.log_event(op, f"[{account_id}] Unhandled exception during analyze: {str(err)}", level="WARNING")
+        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
+        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
 
     else:
         logger.log_event(op, f"analyze instagram new data for user {account.user.id}")
@@ -179,7 +201,7 @@ def analyze_account_growth_logs(account_id):
     op = analyze_account_growth_logs.__name__
     logger.log_event(op, "task is running...")
     account = InstagramAccount.objects.prefetch_related("profile").get(pk=account_id)
-    today = datetime.today()
+    today = timezone.datetime.today()
     logger.log_event(op, "update or create growth logs...")
     AccountGrowthLog.objects.update_or_create(
         account=account,

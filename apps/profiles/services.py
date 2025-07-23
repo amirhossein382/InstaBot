@@ -46,7 +46,7 @@ class ProfileConfig:
 
     def create_analyze_update_follow_data_periodic_task(self, account_id):
         schedule, created = IntervalSchedule.objects.get_or_create(
-            every=3,
+            every=6,
             period=IntervalSchedule.HOURS,
         )
         task_name_ = self.update_follow_task.format(account_id=account_id)

@@ -57,7 +57,15 @@ class LoginView(APIView):
                 msg='Open your browser and login to your account for fix Challenge Required',
                 _status=status.HTTP_400_BAD_REQUEST
             )
-
+        except Exception as err:
+            logger.log_event(
+                self.__class__, log_data=f" login failed because unknown error ---> {str(err)}",
+                level="WARNING"
+            )
+            return base_response_with_error(
+                msg=" login failed because unknown error!",
+                _status=status.HTTP_400_BAD_REQUEST
+            )
         else:
             user, created = User.objects.get_or_create(
                 username=serializer.validated_data["username"],
@@ -83,7 +91,7 @@ class LoginView(APIView):
                 account.save()
 
             login(request=request, user=user)
-        return Response(data="logged in success")
+            return Response(data="logged in success")
 
 
 class LogoutView(APIView):
