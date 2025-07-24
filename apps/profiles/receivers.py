@@ -6,6 +6,7 @@ from apps.notifications.models import Notification
 from apps.core.utils import Logger
 from apps.account.models import InstagramAccount
 from apps.enums import FollowerChangeStatusEnum
+from .tasks import send_push_notif_to_account
 from .models import FollowerChange
 from .services import ProfileService
 from .signals import profile_initialized
@@ -19,8 +20,14 @@ def notify_change(sender, instance, created, **kwargs):
     if created:
         match instance.change_type:
             case FollowerChangeStatusEnum.NEW_FOLLOW:
+                send_push_notif_to_account.delay(
+                    instance.account, "Follower Changed!", f"{instance.username} followed you recently"
+                )
                 Notification.create_new_follower_notif(instance.account, instance)
             case FollowerChangeStatusEnum.UNFOLLOW:
+                send_push_notif_to_account.delay(
+                    instance.account, "Follower Changed!", f"{instance.username} un followed you recently"
+                )
                 Notification.create_un_follower_notif(instance.account, instance)
 
 
