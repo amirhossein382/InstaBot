@@ -195,3 +195,6 @@ LOGGING = {
         }
     }
 }
+
+# FIREBASE
+FIREBASE_CRED_PATH = os.path.join(BASE_DIR, "firebase_credentials.json")

@@ -1,10 +1,11 @@
 from django.db.models import Q
 from django.db import transaction
-from django.utils import timezone
+from django.utils.timezone import datetime, now, timedelta
 from celery import shared_task, Task
 
 from apps.account.exceptions import PleaseWaitFewMinutes, LoginRequired, ChallengeRequired, FeedbackRequired
 from apps.account.models import InstagramAccount
+from apps.notifications.models import Notification
 from apps.core.utils import Logger
 from apps.enums import FollowerChangeStatusEnum
 from .models import Follower, Following, FollowerChange, Profile, AccountGrowthLog
@@ -13,7 +14,7 @@ from .services import ProfileService
 
 profile_svc = ProfileService()
 logger = Logger()
-reenable_time = timezone.now() + timezone.timedelta(hours=12)
+reenable_time = now() + timedelta(hours=12)
 
 
 class BaseRetryTask(Task):
@@ -35,6 +36,9 @@ def analyze_and_update_follow_data(self, account_id):
         logger.log_event(op, f"not authenticated!. pausing tasks for user {account.user.id}", level="WARNING")
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
+        Notification.create_error_notification(
+            account, message="Your account logged out. please login again!."
+        )
         return
 
     try:
@@ -45,6 +49,9 @@ def analyze_and_update_follow_data(self, account_id):
 
     except PleaseWaitFewMinutes as err:
         logger.log_event(op, f"Rate limited: delaying 1 hour for user {account.user.id} --> {str(err)}", level="ERROR")
+        Notification.create_error_notification(
+            account, message="Rate limit from instagram, delay analys for 1 hour"
+        )
         raise self.retry(exc=err, countdown=3600)
 
     except LoginRequired as err:
@@ -52,11 +59,17 @@ def analyze_and_update_follow_data(self, account_id):
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
         profile_svc.account_svc.logout_django_by_user(account.user)
+        Notification.create_error_notification(account, message="Your account logged out. please login again!.")
 
     except ChallengeRequired as err:
-        logger.log_event(op, log_data=f" getting new data failed because challenge required -> {str(err)}", level="ERROR")
+        logger.log_event(op, log_data=f" getting new data failed because challenge required -> {str(err)}",
+                         level="ERROR")
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
+        Notification.create_error_notification(
+            account,
+            message="Challenge required from instagram. go to instagram website and login to resolve challenges."
+        )
 
     except FeedbackRequired as err:
         logger.log_event(
@@ -70,6 +83,9 @@ def analyze_and_update_follow_data(self, account_id):
         )
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task.apply_async(
             (account_id, False,), eta=reenable_time
+        )
+        Notification.create_error_notification(
+            account, message="Feedback required from instagram. pausing analyses for 12 hours"
         )
 
     except Exception as err:
@@ -201,7 +217,7 @@ def analyze_account_growth_logs(account_id):
     op = analyze_account_growth_logs.__name__
     logger.log_event(op, "task is running...")
     account = InstagramAccount.objects.prefetch_related("profile").get(pk=account_id)
-    today = timezone.datetime.today()
+    today = datetime.today()
     logger.log_event(op, "update or create growth logs...")
     AccountGrowthLog.objects.update_or_create(
         account=account,

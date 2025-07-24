@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Notification
+from .models import Notification, PushNotifDevice
 
 
 class NotificationTypeSerializer(serializers.Serializer):
@@ -15,3 +15,9 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ("type", "message", "extra_data", "created_at")
+
+
+class PushNotifDeviceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PushNotifDevice
+        fields = ("account", "token", "is_active")
