@@ -5,6 +5,7 @@ from rest_framework import permissions
 from apps.account.models import InstagramAccount
 from apps.account.exceptions import base_response_with_error
 from apps.enums import FollowerChangeStatusEnum
+from .services import ProfileService
 from .models import (
     Following, Follower, FollowerChange, Profile,
     AccountGrowthLog
@@ -14,6 +15,8 @@ from .serializers import (
     FollowerChangeSerializer, ProfileSerializer,
     AccountGrowthLogSerializer
 )
+
+profile_svc = ProfileService()
 
 
 class ProfileView(views.APIView):
@@ -115,3 +118,29 @@ class AccountGrowthLogView(views.APIView):
 
         serializer = AccountGrowthLogSerializer(logs, many=True)
         return Response(serializer.data)
+
+
+class UserUnfollowAPIView(views.APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_queryset(self, user_pk):
+        account = InstagramAccount.objects.get(user=self.request.user)
+        following = Following.objects.get(account=account, user_pk=user_pk)
+        return account, following
+
+    def delete(self, request, *args, **kwargs):
+        user_pk = kwargs.get('following_pk', None)
+        if user_pk:
+            try:
+                account, following = self.get_queryset(user_pk)
+            except InstagramAccount.DoesNotExist as err:
+                return base_response_with_error(str(err), _status=status.HTTP_404_NOT_FOUND)
+            except Following.DoesNotExist as err:
+                return base_response_with_error(str(err), _status=status.HTTP_404_NOT_FOUND)
+
+            is_unfollowed = profile_svc.unfollow_user(account, user_pk)
+            if is_unfollowed:
+                following.delete()
+                return Response(status=status.HTTP_200_OK)
+
+        return Response(status=status.HTTP_400_BAD_REQUEST)

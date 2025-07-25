@@ -176,3 +176,7 @@ class ProfileService:
             ))
 
         FollowerChange.objects.bulk_create(change_objects, batch_size=self.batch_size)
+
+    def unfollow_user(self, account, user_pk):
+        client = self.account_svc.config.get_account_client(account)
+        return client.user_unfollow(str(user_pk))

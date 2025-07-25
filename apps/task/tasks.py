@@ -15,7 +15,7 @@ def upload_media_to_instagram(task_id):
     op = upload_media_to_instagram.__name__
     logger.log_event(op, log_data=f"task {task_id} is running...")
     task = MediaTask.objects.select_related("account").get(id=task_id)
-    client = account_svc.get_account_client(task.account)
+    client = account_svc.config.get_account_client(task.account)
 
     try:
         task.to_state_uploading()
