@@ -5,7 +5,7 @@ from celery import shared_task, Task
 
 from apps.account.exceptions import PleaseWaitFewMinutes, LoginRequired, ChallengeRequired, FeedbackRequired
 from apps.account.models import InstagramAccount
-from apps.notifications.tasks import send_push_notif_to_account
+from apps.notifications.tasks import send_push_notif_to_account, notify_change
 from apps.notifications.models import Notification
 from apps.core.utils import Logger
 from apps.enums import FollowerChangeStatusEnum
@@ -161,7 +161,6 @@ def analyze_and_update_follow_data(self, account_id):
         for pk in not_back_set:
             changes.append(build_change(pk, FollowerChangeStatusEnum.NOT_BACK, new_followings_dict))
 
-        logger.log_event(op, log_data="new data analyzed!")
         with transaction.atomic():
             # Update profile...
             logger.log_event(op, "updating user profile info ...")
@@ -171,34 +170,32 @@ def analyze_and_update_follow_data(self, account_id):
                 logger.log_event(op, "user profile info updated!")
 
             logger.log_event(op, f"deleting user expire changes...")
+
             # Delete expired Changes...
             FollowerChange.objects.filter(
-                Q(user_pk__in=unfollowers_set) | Q(user_pk__in=unfollowings_set),
-                account=account,
-                change_type=FollowerChangeStatusEnum.MUTUAL,
+                Q(account=account) &
+                (
+                        Q(change_type=FollowerChangeStatusEnum.MUTUAL, user_pk__in=unfollowers_set | unfollowings_set) |
+                        Q(change_type=FollowerChangeStatusEnum.NOT_BACK,
+                          user_pk__in=unfollowings_set | new_followers_set) |
+                        Q(change_type=FollowerChangeStatusEnum.NEW_FOLLOW, user_pk__in=unfollowers_set) |
+                        Q(change_type=FollowerChangeStatusEnum.UNFOLLOW, user_pk__in=new_followers_set)
+                )
             ).delete()
-            FollowerChange.objects.filter(
-                Q(user_pk__in=unfollowings_set) | Q(user_pk__in=new_followers_set),
-                account=account,
-                change_type=FollowerChangeStatusEnum.NOT_BACK,
-            ).delete()
-            FollowerChange.objects.filter(
-                change_type=FollowerChangeStatusEnum.NEW_FOLLOW,
-                account=account,
-                user_pk__in=unfollowers_set
-            ).delete()
-            FollowerChange.objects.filter(
-                account=account,
-                change_type=FollowerChangeStatusEnum.UNFOLLOW,
-                user_pk__in=new_followers_set
-            )
-            logger.log_event(op, "adding user new changes...")
-            # Add new changes
-            FollowerChange.objects.bulk_create(changes, ignore_conflicts=True)
-            # TODO: fix bulk_create
 
-            logger.log_event(op, "updating user new followers ...")
+            def bulk_insert_in_batches(model_cls, objects, batch_size=1000):
+                for i in range(0, len(objects), batch_size):
+                    model_cls.objects.bulk_create(objects[i:i + batch_size], ignore_conflicts=True)
+
+            # Add new changes
+            logger.log_event(op, "adding user new changes...")
+            bulk_insert_in_batches(FollowerChange, changes)
+
+            # Create internal change notifications
+            notify_change.delay([c.id for c in changes])
+
             # Add new followers
+            logger.log_event(op, "updating user new followers ...")
             new_follower_objs = [
                 Follower(
                     account=account,
@@ -209,10 +206,10 @@ def analyze_and_update_follow_data(self, account_id):
                 )
                 for pk, data in new_followers_dict.items() if pk in new_followers_set
             ]
-            Follower.objects.bulk_create(new_follower_objs, ignore_conflicts=True)
+            bulk_insert_in_batches(Follower, new_follower_objs)
 
-            logger.log_event(op, "updating user new followings ...")
             # Add new followings
+            logger.log_event(op, "updating user new followings ...")
             new_following_objs = [
                 Following(
                     account=account,
@@ -223,10 +220,10 @@ def analyze_and_update_follow_data(self, account_id):
                 )
                 for pk, data in new_followings_dict.items() if pk in new_followings_set
             ]
-            Following.objects.bulk_create(new_following_objs, ignore_conflicts=True)
+            bulk_insert_in_batches(Following, new_following_objs)
 
-            logger.log_event(op, "deleting user expire follower, followings ...")
             # Remove expire follower, following
+            logger.log_event(op, "deleting user expire follower, followings ...")
             if unfollowers_set:
                 Follower.objects.filter(account=account, user_pk__in=unfollowers_set).delete()
             if unfollowings_set:
