@@ -8,6 +8,7 @@ from apps.account.models import InstagramAccount
 from .tasks import upload_media_to_instagram
 from .models import MediaTask
 from .serializers import MediaTaskSerializer
+from ..account.exceptions import base_response_with_error
 
 
 class MediaTaskListCreateView(views.APIView):
@@ -17,7 +18,11 @@ class MediaTaskListCreateView(views.APIView):
     def get(self, request, *args, **kwargs):
         param = "task_type"
         data = self.request.GET
-        account = InstagramAccount.objects.get(user=self.request.user)
+        try:
+            account = InstagramAccount.objects.get(user=self.request.user)
+        except InstagramAccount.DoesNotExist as err:
+            return base_response_with_error(str(err), status.HTTP_404_NOT_FOUND)
+
         match data.get(param):
             case MediaTaskTypeEnum.POST:
                 task = MediaTask.objects.filter(account=account, task_type=MediaTaskTypeEnum.POST)

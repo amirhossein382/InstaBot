@@ -4,8 +4,8 @@ from .models import Notification, PushNotifDevice
 
 
 class NotificationTypeSerializer(serializers.Serializer):
-    profile_pic_url = serializers.URLField(max_length=1000, null=True, blank=True)
-    full_name = serializers.CharField(max_length=100, blank=True, null=True)
+    profile_pic_url = serializers.URLField(max_length=1000, required=False)
+    full_name = serializers.CharField(max_length=100, required=False)
     username = serializers.CharField(max_length=100)
 
 

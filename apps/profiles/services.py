@@ -11,14 +11,13 @@ from .models import FollowerChange
 
 
 class ProfileConfig:
-    task_expire_time = 3600  # 1 hour
     update_follow_task = "analyze_follow_data_user_{account_id}"
     growth_data_task = "analyze_account_growth_logs_{account_id}"
 
     def create_analyze_growth_logs_periodic_task(self, account_id):
         schedule, created = IntervalSchedule.objects.get_or_create(
-            every=1,
-            period=IntervalSchedule.DAYS,
+            every=15,
+            period=IntervalSchedule.MINUTES,
         )
         task_name_ = self.growth_data_task.format(account_id=account_id)
         if not PeriodicTask.objects.filter(name=task_name_).exists():
@@ -28,13 +27,13 @@ class ProfileConfig:
                 task="apps.profiles.tasks.analyze_account_growth_logs",
                 args=json.dumps([account_id]),
                 enabled=True,
-                expires=self.task_expire_time,
+                one_off=False,
                 start_time=timezone.now()
             )
 
     def pause_or_resume_analyze_growth_logs_periodic_task(self, account_id, pause: bool):
         try:
-            task = PeriodicTask.objects.get(nama=self.growth_data_task.format(account_id=account_id))
+            task = PeriodicTask.objects.get(name=self.growth_data_task.format(account_id=account_id))
         except PeriodicTask.DoesNotExist:
             pass
         else:
@@ -46,8 +45,8 @@ class ProfileConfig:
 
     def create_analyze_update_follow_data_periodic_task(self, account_id):
         schedule, created = IntervalSchedule.objects.get_or_create(
-            every=6,
-            period=IntervalSchedule.HOURS,
+            every=15,
+            period=IntervalSchedule.MINUTES,
         )
         task_name_ = self.update_follow_task.format(account_id=account_id)
         if not PeriodicTask.objects.filter(name=task_name_).exists():
@@ -56,8 +55,8 @@ class ProfileConfig:
                 name=task_name_,
                 task="apps.profiles.tasks.analyze_and_update_follow_data",
                 args=json.dumps([account_id]),
+                one_off=False,
                 enabled=True,
-                expires=self.task_expire_time
             )
 
     def pause_or_resume_analyze_update_follow_data_periodic_task(self, account_id, pause: bool):
@@ -122,7 +121,6 @@ class ProfileService:
 
     def fetch_profile_info(self, account):
         profile_info = self.load_profile_info(account)
-        print(profile_info)
         serializer = ProfileSerializer(data=profile_info)
         serializer.is_valid(raise_exception=True)
         serializer.save()

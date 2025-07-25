@@ -8,3 +8,4 @@ build/
 dist/
 *.sqlite3
 .env
+firebase_credentials.json

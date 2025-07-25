@@ -37,7 +37,7 @@ def analyze_and_update_follow_data(self, account_id):
         logger.log_event(op, f"not authenticated!. pausing tasks for user {account.user.id}", level="WARNING")
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
-        send_push_notif_to_account.delay(account_id, "Logged Out", "Your account logged out. please login again!")
+        # send_push_notif_to_account.delay(account_id, "Logged Out", "Your account logged out. please login again!")
         Notification.create_error_notification(
             account, message="Your account logged out. please login again!"
         )
@@ -51,9 +51,9 @@ def analyze_and_update_follow_data(self, account_id):
 
     except PleaseWaitFewMinutes as err:
         logger.log_event(op, f"Rate limited: delaying 1 hour for user {account.user.id} --> {str(err)}", level="ERROR")
-        send_push_notif_to_account.delay(
-            account_id, "Rate Limit", "Rate limit from instagram, delay analys for 1 hour!"
-        )
+        # send_push_notif_to_account.delay(
+        #     account_id, "Rate Limit", "Rate limit from instagram, delay analys for 1 hour!"
+        # )
         Notification.create_error_notification(
             account, message="Rate limit from instagram, delay analys for 1 hour"
         )
@@ -64,9 +64,9 @@ def analyze_and_update_follow_data(self, account_id):
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
         profile_svc.account_svc.logout_django_by_user(account.user)
-        send_push_notif_to_account.delay(
-            account_id, "Logged Out", "Your account logged out. please login again!"
-        )
+        # send_push_notif_to_account.delay(
+        #     account_id, "Logged Out", "Your account logged out. please login again!"
+        # )
         Notification.create_error_notification(account, message="Your account logged out. please login again!")
 
     except ChallengeRequired as err:
@@ -74,10 +74,10 @@ def analyze_and_update_follow_data(self, account_id):
                          level="ERROR")
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
-        send_push_notif_to_account.delay(
-            account_id, "Challenge Required",
-            "Challenge required from instagram. go to instagram website and login to resolve challenges"
-        )
+        # send_push_notif_to_account.delay(
+        #     account_id, "Challenge Required",
+        #     "Challenge required from instagram. go to instagram website and login to resolve challenges"
+        # )
         Notification.create_error_notification(
             account,
             message="Challenge required from instagram. go to instagram website and login to resolve challenges"
@@ -96,10 +96,10 @@ def analyze_and_update_follow_data(self, account_id):
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task.apply_async(
             (account_id, False,), eta=reenable_time
         )
-        send_push_notif_to_account.delay(
-            account_id, "FeedBack Required",
-            "Feedback required from instagram. pausing analyses for 12 hours"
-        )
+        # send_push_notif_to_account.delay(
+        #     account_id, "FeedBack Required",
+        #     "Feedback required from instagram. pausing analyses for 12 hours"
+        # )
         Notification.create_error_notification(
             account, message="Feedback required from instagram. pausing analyses for 12 hours!"
         )
@@ -108,19 +108,19 @@ def analyze_and_update_follow_data(self, account_id):
         logger.log_event(op, f"[{account_id}] Unhandled exception during analyze: {str(err)}", level="WARNING")
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
-        send_push_notif_to_account.delay(
-            account_id, "Unknown Error",
-            "Analysed failed for unknown error. try to open app or login again"
-        )
+        # send_push_notif_to_account.delay(
+        #     account_id, "Unknown Error",
+        #     "Analysed failed for unknown error. try to open app or login again"
+        # )
 
     else:
         logger.log_event(op, f"analyze instagram new data for user {account.user.id}")
         new_followers_dict = {item["user_pk"]: item for item in new_followers}
         new_followings_dict = {item["user_pk"]: item for item in new_followings}
 
-        old_profile_info = Profile.objects.get(user=account)
-        old_followers = Follower.objects.filter(user=account)
-        old_followings = Following.objects.filter(user=account)
+        old_profile_info = Profile.objects.get(account=account)
+        old_followers = Follower.objects.filter(account=account)
+        old_followings = Following.objects.filter(account=account)
 
         old_followers_dict = {f.user_pk: f for f in old_followers}
         old_followings_dict = {f.user_pk: f for f in old_followings}
@@ -195,6 +195,7 @@ def analyze_and_update_follow_data(self, account_id):
             logger.log_event(op, "adding user new changes...")
             # Add new changes
             FollowerChange.objects.bulk_create(changes, ignore_conflicts=True)
+            # TODO: fix bulk_create
 
             logger.log_event(op, "updating user new followers ...")
             # Add new followers

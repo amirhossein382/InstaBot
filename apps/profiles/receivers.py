@@ -20,14 +20,14 @@ def notify_change(sender, instance, created, **kwargs):
     if created:
         match instance.change_type:
             case FollowerChangeStatusEnum.NEW_FOLLOW:
-                send_push_notif_to_account.delay(
-                    instance.account, "Follower Changed!", f"{instance.username} followed you recently"
-                )
+                # send_push_notif_to_account.delay(
+                #     instance.account, "Follower Changed!", f"{instance.username} followed you recently"
+                # )
                 Notification.create_new_follower_notif(instance.account, instance)
             case FollowerChangeStatusEnum.UNFOLLOW:
-                send_push_notif_to_account.delay(
-                    instance.account, "Follower Changed!", f"{instance.username} un followed you recently"
-                )
+                # send_push_notif_to_account.delay(
+                #     instance.account, "Follower Changed!", f"{instance.username} un followed you recently"
+                # )
                 Notification.create_un_follower_notif(instance.account, instance)
 
 
@@ -45,8 +45,12 @@ def start_periodic_analysis(sender, account_id, **kwargs):
 @receiver(user_logged_in)
 def resume_periodic_analysis(sender, request, user, **kwargs):
     op = resume_periodic_analysis.__name__
-    account = InstagramAccount.objects.get(user=user)
-    logger.log_event(op, "user logged out, resuming periodic tasks...")
+    try:
+        account = InstagramAccount.objects.get(user=user)
+    except InstagramAccount.DoesNotExist:
+        return
+
+    logger.log_event(op, "user logged in, resuming periodic tasks...")
     profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account.id, pause=False)
     profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account.id, pause=False)
     logger.log_event(op, "periodic tasks resumed")
@@ -55,7 +59,11 @@ def resume_periodic_analysis(sender, request, user, **kwargs):
 @receiver(user_logged_out)
 def end_periodic_analysis(sender, request, user, **kwargs):
     op = end_periodic_analysis.__name__
-    account = InstagramAccount.objects.get(user=user)
+    try:
+        account = InstagramAccount.objects.get(user=user)
+    except InstagramAccount.DoesNotExist:
+        return
+
     logger.log_event(op, "user logged out, pausing periodic tasks...")
     profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account.id, pause=True)
     profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account.id, pause=True)

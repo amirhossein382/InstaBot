@@ -5,8 +5,11 @@ from django.contrib.sessions.models import Session
 from django.contrib.auth import get_user_model, SESSION_KEY
 from instagrapi import Client
 
+from apps.core.utils import Logger
 from .models import InstagramAccount
 from .exceptions import UserUnActiveException, BadPassword
+
+logger = Logger()
 
 
 class AccountConfig:
@@ -59,10 +62,12 @@ class AccountService:
                 session.delete()
 
     def login_by_user_pass(self, username, password, device):
+        op = "login_by_user_pass"
         client = self.config.get_client()
         ig_settings_is_correct = False
         try:
             user = self.User.objects.get(username=username)
+            logger.log_event(op, log_data="User already exists")
             if user.check_password(password):
                 if not user.is_active:
                     raise UserUnActiveException()
@@ -72,8 +77,10 @@ class AccountService:
                 try:
                     client.set_settings(json.loads(account.client_settings))
                     client.get_timeline_feed()
+                    logger.log_event(op, log_data="User instagram session is valid.")
                 except Exception:
-                    client.settings = {}  # remove invalid settings
+                    logger.log_event(op, log_data="User instagram session is not valid.", level="ERROR")
+                    client.set_settings({})  # remove invalid settings
                     client.set_device(device=json.loads(account.client_settings["device_settings"]))
                     client.set_user_agent(json.loads(account.client_settings["user_agent"]))
                     client.set_uuids(json.loads(account.client_settings["uuids"]))
@@ -84,12 +91,14 @@ class AccountService:
                 raise BadPassword("Your account password is wrong!")
 
         except self.User.DoesNotExist:
-            device = self.config.create_device_settings(device)
-            user_agent = self.config.create_user_agent(device)
-            client.set_device(device)
+            logger.log_event(op, log_data="User does not exist.")
+            device1 = self.config.create_device_settings(device)
+            user_agent = self.config.create_user_agent(device1)
+            client.set_device(device1)
             client.set_user_agent(user_agent)
 
         if not ig_settings_is_correct:
+            logger.log_event(op, log_data="Login user to instagram")
             client.login(username=username, password=password)
 
         return client

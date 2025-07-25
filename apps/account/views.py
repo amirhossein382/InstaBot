@@ -40,26 +40,27 @@ class LoginView(APIView):
                 device=serializer.validated_data["device_settings"]
             )
         except BadPassword as msg:
-            logger.log_event(self.__class__, log_data=" login failed because bad password", level="ERROR")
+            logger.log_event(self.__class__.__name__, log_data=" login failed because bad password", level="ERROR")
             return base_response_with_error(msg=str(msg), _status=status.HTTP_401_UNAUTHORIZED)
         except PleaseWaitFewMinutes as msg:
-            logger.log_event(self.__class__, log_data=" login failed because throttled", level="ERROR")
+            logger.log_event(self.__class__.__name__, log_data=" login failed because throttled", level="ERROR")
             return base_response_with_error(msg=str(msg), _status=status.HTTP_202_ACCEPTED)
         except LoginRequired:
-            logger.log_event(self.__class__, log_data=" login failed because blocked", level="ERROR")
+            logger.log_event(self.__class__.__name__, log_data=" login failed because blocked", level="ERROR")
             return base_response_with_error(
                 msg="Too many request, try after 30 minutes.",
                 _status=status.HTTP_400_BAD_REQUEST
             )
         except ChallengeRequired:
-            logger.log_event(self.__class__, log_data=" login failed because challenge required", level="ERROR")
+            logger.log_event(self.__class__.__name__, log_data=" login failed because challenge required",
+                             level="ERROR")
             return base_response_with_error(
                 msg='Open your browser and login to your account for fix Challenge Required',
                 _status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as err:
             logger.log_event(
-                self.__class__, log_data=f" login failed because unknown error ---> {str(err)}",
+                self.__class__.__name__, log_data=f" login failed because unknown error ---> {str(err)}",
                 level="WARNING"
             )
             return base_response_with_error(
@@ -98,7 +99,7 @@ class LogoutView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request, *args, **kwargs):
-        logger.log_event("logout", log_data="user logged out")
+        logger.log_event(self.__class__.__name__, log_data="user logged out")
         logout(self.request)
         return Response({"detail": "Logged out successfully."}, status=status.HTTP_200_OK)
 
@@ -109,20 +110,25 @@ class AccountInitialView(APIView):
     def get(self, request, *args, **kwargs):
         user = request.user
         account = InstagramAccount.objects.get(user=user)
-        logger.log_event(self.__class__, log_data="account initial started")
+        logger.log_event(self.__class__.__name__, log_data="account initial started")
         try:
             with transaction.atomic():
-                print("\nfetching profile..")
+                logger.log_event(self.__class__.__name__, log_data="fetching profile..")
                 profile_svc.fetch_profile_info(account)
-                print("\nfetching followers..")
+                logger.log_event(self.__class__.__name__, log_data="fetching followers..")
                 followers = profile_svc.fetch_followers(account)
-                print("\nfetching followings..")
+                logger.log_event(self.__class__.__name__, log_data="fetching followings..")
                 followings = profile_svc.fetch_followings(account)
+                logger.log_event(self.__class__.__name__, log_data="fetching analyses..")
                 profile_svc.analyze_follower_changes(account=account, followers=followers, followings=followings)
+                transaction.on_commit(lambda: profile_initialized.send(
+                    sender=self.__class__.__name__, account_id=account.id
+                ))
+
         except Exception as e:
-            logger.log_event(self.__class__, log_data=f"account initial failed --> {str(e)}", level="ERROR")
+            logger.log_event(self.__class__.__name__, log_data=f"account initial failed --> {str(e)}", level="ERROR")
             return Response(data={"detail": f"Initialization failed: {str(e)}"},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        logger.log_event(self.__class__, log_data="account initial done")
-        profile_initialized.send(sender=self.__class__, account_id=account.id)
+
+        logger.log_event(self.__class__.__name__, log_data="account initial done")
         return Response(data="initialized successfully", status=status.HTTP_201_CREATED)

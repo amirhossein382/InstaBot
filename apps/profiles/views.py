@@ -1,8 +1,9 @@
-from rest_framework import views
+from rest_framework import views, status
 from rest_framework.response import Response
 from rest_framework import permissions
 
 from apps.account.models import InstagramAccount
+from apps.account.exceptions import base_response_with_error
 from apps.enums import FollowerChangeStatusEnum
 from .models import (
     Following, Follower, FollowerChange, Profile,
@@ -24,7 +25,10 @@ class ProfileView(views.APIView):
         return Profile.objects.get(account=account)
 
     def get(self, request, *args, **kwargs):
-        profile = self.get_queryset()
+        try:
+            profile = self.get_queryset()
+        except InstagramAccount.DoesNotExist as err:
+            return base_response_with_error(str(err), status.HTTP_404_NOT_FOUND)
         serializer = ProfileSerializer(instance=profile)
         return Response(serializer.data)
 
@@ -38,7 +42,11 @@ class FollowersView(views.APIView):
         return Follower.objects.filter(account=account)
 
     def get(self, request, *args, **kwargs):
-        followers = self.get_queryset()
+        try:
+            followers = self.get_queryset()
+        except InstagramAccount.DoesNotExist as err:
+            return base_response_with_error(str(err), status.HTTP_404_NOT_FOUND)
+
         serializer = FollowerSerializer(instance=followers, many=True)
         return Response(serializer.data)
 
@@ -52,7 +60,11 @@ class FollowingsView(views.APIView):
         return Following.objects.filter(account=account)
 
     def get(self, request, *args, **kwargs):
-        followings = self.get_queryset()
+        try:
+            followings = self.get_queryset()
+        except InstagramAccount.DoesNotExist as err:
+            return base_response_with_error(str(err), status.HTTP_404_NOT_FOUND)
+
         serializer = FollowerSerializer(instance=followings, many=True)
         return Response(serializer.data)
 
@@ -68,17 +80,20 @@ class FollowerChangesView(views.APIView):
     def get(self, request, *args, **kwargs):
         query_param = "change_type"
         data = request.GET
-        match data.get(query_param):
-            case FollowerChangeStatusEnum.MUTUAL:
-                follower_changes = self.get_queryset(change_type=FollowerChangeStatusEnum.MUTUAL)
-            case FollowerChangeStatusEnum.NOT_BACK:
-                follower_changes = self.get_queryset(change_type=FollowerChangeStatusEnum.NOT_BACK)
-            case FollowerChangeStatusEnum.NEW_FOLLOW:
-                follower_changes = self.get_queryset(change_type=FollowerChangeStatusEnum.NEW_FOLLOW)
-            case FollowerChangeStatusEnum.UNFOLLOW:
-                follower_changes = self.get_queryset(change_type=FollowerChangeStatusEnum.UNFOLLOW)
-            case _:
-                follower_changes = self.get_queryset()
+        try:
+            match data.get(query_param):
+                case FollowerChangeStatusEnum.MUTUAL:
+                    follower_changes = self.get_queryset(change_type=FollowerChangeStatusEnum.MUTUAL)
+                case FollowerChangeStatusEnum.NOT_BACK:
+                    follower_changes = self.get_queryset(change_type=FollowerChangeStatusEnum.NOT_BACK)
+                case FollowerChangeStatusEnum.NEW_FOLLOW:
+                    follower_changes = self.get_queryset(change_type=FollowerChangeStatusEnum.NEW_FOLLOW)
+                case FollowerChangeStatusEnum.UNFOLLOW:
+                    follower_changes = self.get_queryset(change_type=FollowerChangeStatusEnum.UNFOLLOW)
+                case _:
+                    follower_changes = self.get_queryset()
+        except InstagramAccount.DoesNotExist as err:
+            return base_response_with_error(str(err), status.HTTP_404_NOT_FOUND)
 
         serializer = FollowerChangeSerializer(follower_changes, many=True)
         return Response(serializer.data)
@@ -93,6 +108,10 @@ class AccountGrowthLogView(views.APIView):
         return AccountGrowthLog.objects.filter(account=account)
 
     def get(self, request, *args, **kwargs):
-        logs = self.get_queryset()
+        try:
+            logs = self.get_queryset()
+        except InstagramAccount.DoesNotExist as err:
+            return base_response_with_error(str(err), status.HTTP_404_NOT_FOUND)
+
         serializer = AccountGrowthLogSerializer(logs, many=True)
         return Response(serializer.data)

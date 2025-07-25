@@ -16,8 +16,8 @@ class CustomUserAdmin(UserAdmin):
     list_display = ("username", "email", "is_superuser")
 
     fieldsets = (
-        (None, {"fields": ("email", "password")}),
-        (_("Personal info"), {"fields": ("first_name", "last_name", "username")}),
+        (None, {"fields": ("username", "password")}),
+        (_("Personal info"), {"fields": ("first_name", "last_name", "email")}),
         (
             _("Permissions"),
             {
@@ -37,7 +37,7 @@ class CustomUserAdmin(UserAdmin):
             None,
             {
                 "classes": ("wide",),
-                "fields": ("email", "username", "password1", "password2"),
+                "fields": ("username", "usable_password", "password1", "password2"),
             },
         ),
     )
@@ -56,7 +56,7 @@ class InstagramAccountAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         default_qs = super().get_queryset(request)
-        return default_qs.select_realted("user")
+        return default_qs.select_related("user")
 
 
 @admin.register(AdminUser)
