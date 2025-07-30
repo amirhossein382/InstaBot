@@ -2,7 +2,7 @@ from django.utils.translation import gettext_lazy as _
 
 
 class FollowerChangeStatusEnum:
-    NEW_FOLLOW = "new"
+    NEW_FOLLOW = "new_follower"
     UNFOLLOW = "unfollow"
     NOT_BACK = "not_back"
     MUTUAL = "mutual"

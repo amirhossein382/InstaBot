@@ -16,7 +16,7 @@ from .serializers import LoginSerializer
 from .services import AccountService
 from .exceptions import (
     BadPassword, PleaseWaitFewMinutes, LoginRequired,
-    base_response_with_error, ChallengeRequired
+    base_response_with_error, ChallengeRequired, ClientConnectionError
 )
 
 account_svc = AccountService()
@@ -30,6 +30,8 @@ class LoginView(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def post(self, request, *args, **kwargs):
+        verification_code = request.query_params.get("verification_code")
+        print(verification_code)
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -37,53 +39,73 @@ class LoginView(APIView):
             client = account_svc.login_by_user_pass(
                 username=serializer.validated_data["username"],
                 password=serializer.validated_data["password"],
-                device=serializer.validated_data["device_settings"]
+                device=serializer.validated_data["device_settings"],
+                code=verification_code
             )
         except BadPassword as msg:
             logger.log_event(self.__class__.__name__, log_data=" login failed because bad password", level="ERROR")
             return base_response_with_error(msg=str(msg), _status=status.HTTP_401_UNAUTHORIZED)
         except PleaseWaitFewMinutes as msg:
-            logger.log_event(self.__class__.__name__, log_data=" login failed because throttled", level="ERROR")
+            logger.log_event(self.__class__.__name__, log_data="login failed because throttled", level="ERROR")
             return base_response_with_error(msg=str(msg), _status=status.HTTP_202_ACCEPTED)
         except LoginRequired:
-            logger.log_event(self.__class__.__name__, log_data=" login failed because blocked", level="ERROR")
+            logger.log_event(self.__class__.__name__, log_data="login failed because blocked", level="ERROR")
             return base_response_with_error(
                 msg="Too many request, try after 30 minutes.",
                 _status=status.HTTP_400_BAD_REQUEST
             )
         except ChallengeRequired:
-            logger.log_event(self.__class__.__name__, log_data=" login failed because challenge required",
+            logger.log_event(self.__class__.__name__, log_data="login failed because challenge required",
                              level="ERROR")
             return base_response_with_error(
                 msg='Open your browser and login to your account for fix Challenge Required',
                 _status=status.HTTP_400_BAD_REQUEST
             )
+        except ClientConnectionError as err:
+            logger.log_event(self.__class__.__name__, log_data=f"login failed because connection error -->{str(err)}",
+                             level="ERROR")
+            return base_response_with_error(
+                msg='Connection error.',
+                _status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as err:
             logger.log_event(
-                self.__class__.__name__, log_data=f" login failed because unknown error ---> {str(err)}",
+                self.__class__.__name__, log_data=f" login failed because unknown error ---> {err}",
                 level="WARNING"
             )
+            if "EOF when reading a line" in str(err):
+                return base_response_with_error(
+                    msg="Open to your instagram app and accept your login and try again or go to instagram website and login to your account then try to login here again",
+                    _status=status.HTTP_400_BAD_REQUEST
+                )
+            elif "We can't find an account with" in str(err):
+                return base_response_with_error(
+                    msg=str(err),
+                    _status=status.HTTP_400_BAD_REQUEST
+                )
+
             return base_response_with_error(
                 msg=" login failed because unknown error!",
                 _status=status.HTTP_400_BAD_REQUEST
             )
         else:
-            user, created = User.objects.get_or_create(
-                username=serializer.validated_data["username"],
-                defaults={
-                    "password": make_password(serializer.validated_data['password']),
-                }
-            )
-            account, account_created = InstagramAccount.objects.update_or_create(
-                user=user,
-                defaults={
-                    "client_settings": json.dumps(client.get_settings()),
-                },
-                create_defaults={
-                    "client_settings": json.dumps(client.get_settings()),
-                    "client_pk": client.user_id
-                }
-            )
+            with transaction.atomic():
+                user, created = User.objects.get_or_create(
+                    username=serializer.validated_data["username"],
+                    defaults={
+                        "password": make_password(serializer.validated_data['password']),
+                    }
+                )
+                account, account_created = InstagramAccount.objects.update_or_create(
+                    user=user,
+                    defaults={
+                        "client_settings": json.dumps(client.get_settings()),
+                    },
+                    create_defaults={
+                        "client_settings": json.dumps(client.get_settings()),
+                        "client_pk": client.user_id
+                    }
+                )
             if created:
                 user.full_clean()
                 user.save()
@@ -92,7 +114,7 @@ class LoginView(APIView):
                 account.save()
 
             login(request=request, user=user)
-            return Response(data="logged in success")
+            return Response(data="Logged in success")
 
 
 class LogoutView(APIView):

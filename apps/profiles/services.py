@@ -98,7 +98,7 @@ class ProfileService:
         followers = client.user_followers(str(account.client_pk)).values()
         data = [{
             "account": account.pk,
-            "user_pk": follower.pk,
+            "user_pk": int(follower.pk),
             "username": follower.username,
             "full_name": follower.full_name,
             "profile_pic_url": str(follower.profile_pic_url),
@@ -111,7 +111,7 @@ class ProfileService:
         followings = client.user_following(str(account.client_pk)).values()
         data = [{
             "account": account.pk,
-            "user_pk": follower.pk,
+            "user_pk": int(follower.pk),
             "username": follower.username,
             "full_name": follower.full_name,
             "profile_pic_url": str(follower.profile_pic_url),

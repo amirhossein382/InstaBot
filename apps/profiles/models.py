@@ -7,7 +7,7 @@ from apps.enums import FollowerChangeStatusEnum
 
 class Profile(BaseInstagramUser):
     account = models.OneToOneField(InstagramAccount, on_delete=models.CASCADE, related_name="profile")
-    user_pk = models.UUIDField(unique=True)
+    user_pk = models.BigIntegerField(unique=True, db_index=True)
     external_url = models.URLField(null=True, blank=True)
     media_count = models.IntegerField(default=0)
     follower_count = models.IntegerField(default=0)
@@ -23,7 +23,7 @@ class Profile(BaseInstagramUser):
 
 class Follower(BaseInstagramUser):
     account = models.ForeignKey(InstagramAccount, on_delete=models.CASCADE, related_name="followers")
-    user_pk = models.BigIntegerField(unique=True)
+    user_pk = models.BigIntegerField(db_index=True)
 
     class Meta:
         unique_together = (['account', 'user_pk'])
@@ -31,7 +31,7 @@ class Follower(BaseInstagramUser):
 
 class Following(BaseInstagramUser):
     account = models.ForeignKey(InstagramAccount, on_delete=models.CASCADE, related_name="followings")
-    user_pk = models.BigIntegerField(unique=True)
+    user_pk = models.BigIntegerField(db_index=True)
 
     class Meta:
         unique_together = (['account', 'user_pk'])
@@ -39,7 +39,7 @@ class Following(BaseInstagramUser):
 
 class FollowerChange(BaseInstagramUser):
     account = models.ForeignKey(InstagramAccount, on_delete=models.CASCADE, related_name="follower_changes")
-    user_pk = models.BigIntegerField(unique=True)
+    user_pk = models.BigIntegerField(db_index=True)
     change_type = models.CharField(max_length=20, choices=FollowerChangeStatusEnum.CHOICES)
 
     created_at = models.DateTimeField(auto_now_add=True)

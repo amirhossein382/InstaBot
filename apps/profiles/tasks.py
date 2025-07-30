@@ -129,6 +129,8 @@ def analyze_and_update_follow_data(self, account_id):
         old_following_pks = set(old_followings_dict.keys())
         new_follower_pks = set(new_followers_dict.keys())
         new_following_pks = set(new_followings_dict.keys())
+        logger.log_event(op, f"new following pks-->{new_following_pks}")
+        logger.log_event(op, f"old following pks-->{old_following_pks}")
 
         new_followers_set = new_follower_pks - old_follower_pks
         unfollowers_set = old_follower_pks - new_follower_pks
@@ -139,6 +141,13 @@ def analyze_and_update_follow_data(self, account_id):
         mutual_set = new_follower_pks.intersection(new_following_pks)
         not_back_set = new_following_pks - new_follower_pks
 
+        logger.log_event(op, f"new followers --> {new_followers_set}")
+        logger.log_event(op, f"un followers --> {unfollowers_set}")
+        logger.log_event(op, f"new followings --> {new_followings_set}")
+        logger.log_event(op, f"un followings --> {unfollowings_set}")
+        logger.log_event(op, f"mutual followings --> {mutual_set}")
+        logger.log_event(op, f"notback followings --> {not_back_set}")
+
         changes = []
 
         def build_change(user_pk, change_type, source_dict):
@@ -147,19 +156,14 @@ def analyze_and_update_follow_data(self, account_id):
                 account=account,
                 user_pk=user_pk,
                 change_type=change_type,
-                username=data.get("username"),
-                full_name=data.get("full_name", None),
-                profile_pic_url=data.get("profile_pic_url", None),
+                username=data.get("username") if isinstance(data, dict) else data.username,
+                full_name=data.get("full_name") if isinstance(data, dict) else data.full_name,
+                profile_pic_url=data.get("profile_pic_url") if isinstance(data, dict) else data.profile_pic_url
             )
 
-        for pk in new_followers_set:
-            changes.append(build_change(pk, FollowerChangeStatusEnum.NEW_FOLLOW, new_followers_dict))
-        for pk in unfollowers_set:
-            changes.append(build_change(pk, FollowerChangeStatusEnum.UNFOLLOW, old_followers_dict))
-        for pk in mutual_set:
-            changes.append(build_change(pk, FollowerChangeStatusEnum.MUTUAL, new_followers_dict))
-        for pk in not_back_set:
-            changes.append(build_change(pk, FollowerChangeStatusEnum.NOT_BACK, new_followings_dict))
+        def bulk_insert_in_batches(model_cls, objects, batch_size=1000):
+            for i in range(0, len(objects), batch_size):
+                model_cls.objects.bulk_create(objects[i:i + batch_size])
 
         with transaction.atomic():
             # Update profile...
@@ -169,8 +173,22 @@ def analyze_and_update_follow_data(self, account_id):
                 serializer.save()
                 logger.log_event(op, "user profile info updated!")
 
-            logger.log_event(op, f"deleting user expire changes...")
+            # Add new changes
+            logger.log_event(op, "adding user new changes...")
+            for pk in new_followers_set:
+                changes.append(build_change(pk, FollowerChangeStatusEnum.NEW_FOLLOW, new_followers_dict))
 
+            for pk in unfollowers_set:
+                changes.append(build_change(pk, FollowerChangeStatusEnum.UNFOLLOW, old_followers_dict))
+
+            for pk in not_back_set:
+                changes.append(build_change(pk, FollowerChangeStatusEnum.NOT_BACK, new_followings_dict))
+
+            for pk in mutual_set:
+                changes.append(build_change(pk, FollowerChangeStatusEnum.MUTUAL, new_followings_dict))
+
+            bulk_insert_in_batches(FollowerChange, changes)
+            logger.log_event(op, f"deleting user expire changes...")
             # Delete expired Changes...
             FollowerChange.objects.filter(
                 Q(account=account) &
@@ -183,44 +201,39 @@ def analyze_and_update_follow_data(self, account_id):
                 )
             ).delete()
 
-            def bulk_insert_in_batches(model_cls, objects, batch_size=1000):
-                for i in range(0, len(objects), batch_size):
-                    model_cls.objects.bulk_create(objects[i:i + batch_size], ignore_conflicts=True)
-
-            # Add new changes
-            logger.log_event(op, "adding user new changes...")
-            bulk_insert_in_batches(FollowerChange, changes)
-
             # Create internal change notifications
-            notify_change.delay([c.id for c in changes])
+            if changes:
+                notify_change.delay([c.id for c in changes])
 
             # Add new followers
-            logger.log_event(op, "updating user new followers ...")
-            new_follower_objs = [
-                Follower(
-                    account=account,
-                    user_pk=pk,
-                    username=data["username"],
-                    full_name=data.get("full_name", ""),
-                    profile_pic_url=data.get("profile_pic_url", ""),
-                )
-                for pk, data in new_followers_dict.items() if pk in new_followers_set
-            ]
-            bulk_insert_in_batches(Follower, new_follower_objs)
+            if new_followers_set:
+                logger.log_event(op, "updating user new followers ...")
+                new_follower_objs = [
+                    Follower(
+                        account=account,
+                        user_pk=pk,
+                        username=data["username"],
+                        full_name=data.get("full_name", ""),
+                        profile_pic_url=data.get("profile_pic_url", ""),
+                    )
+                    for pk, data in new_followers_dict.items() if pk in new_followers_set
+                ]
+                bulk_insert_in_batches(Follower, new_follower_objs)
 
             # Add new followings
-            logger.log_event(op, "updating user new followings ...")
-            new_following_objs = [
-                Following(
-                    account=account,
-                    user_pk=pk,
-                    username=data["username"],
-                    full_name=data.get("full_name", ""),
-                    profile_pic_url=data.get("profile_pic_url", ""),
-                )
-                for pk, data in new_followings_dict.items() if pk in new_followings_set
-            ]
-            bulk_insert_in_batches(Following, new_following_objs)
+            if new_followings_set:
+                logger.log_event(op, "updating user new followings ...")
+                new_following_objs = [
+                    Following(
+                        account=account,
+                        user_pk=pk,
+                        username=data["username"],
+                        full_name=data.get("full_name", ""),
+                        profile_pic_url=data.get("profile_pic_url", ""),
+                    )
+                    for pk, data in new_followings_dict.items() if pk in new_followings_set
+                ]
+                bulk_insert_in_batches(Following, new_following_objs)
 
             # Remove expire follower, following
             logger.log_event(op, "deleting user expire follower, followings ...")

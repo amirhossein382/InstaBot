@@ -61,7 +61,7 @@ class AccountService:
             if data.get(SESSION_KEY) == str(user.id):
                 session.delete()
 
-    def login_by_user_pass(self, username, password, device):
+    def login_by_user_pass(self, username, password, device, code=None):
         op = "login_by_user_pass"
         client = self.config.get_client()
         ig_settings_is_correct = False
@@ -78,8 +78,8 @@ class AccountService:
                     client.set_settings(json.loads(account.client_settings))
                     client.get_timeline_feed()
                     logger.log_event(op, log_data="User instagram session is valid.")
-                except Exception:
-                    logger.log_event(op, log_data="User instagram session is not valid.", level="ERROR")
+                except Exception as err:
+                    logger.log_event(op, log_data=f"User instagram session is not valid.-->{err}", level="ERROR")
                     client.set_settings({})  # remove invalid settings
                     client.set_device(device=json.loads(account.client_settings["device_settings"]))
                     client.set_user_agent(json.loads(account.client_settings["user_agent"]))
@@ -98,7 +98,13 @@ class AccountService:
             client.set_user_agent(user_agent)
 
         if not ig_settings_is_correct:
-            logger.log_event(op, log_data="Login user to instagram")
-            client.login(username=username, password=password)
+
+            if code is not None:
+                logger.log_event(op, log_data="Login user to instagram with verification code")
+                print(code)
+                client.login(username=username, password=password, verification_code=str(code))
+            else:
+                logger.log_event(op, log_data="Login user to instagram")
+                client.login(username=username, password=password)
 
         return client

@@ -5,7 +5,8 @@ from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 from instagrapi.exceptions import (
     BadPassword, PleaseWaitFewMinutes, LoginRequired,
-    ClientUnauthorizedError, ChallengeRequired, FeedbackRequired
+    ClientUnauthorizedError, ChallengeRequired,
+    FeedbackRequired,ClientConnectionError,
 )
 
 
