@@ -31,8 +31,7 @@ def analyze_and_update_follow_data(self, account_id):
 
     account = InstagramAccount.objects.select_related("user").get(pk=account_id)
     if (not account.user.is_authenticated) or (not profile_svc.is_ig_authenticated(account)):
-        if not profile_svc.is_ig_authenticated(account):
-            profile_svc.account_svc.logout_django_by_user(account.user)
+        profile_svc.account_svc.logout_django_by_user(account.user)
 
         logger.log_event(op, f"not authenticated!. pausing tasks for user {account.user.id}", level="WARNING")
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
@@ -174,21 +173,37 @@ def analyze_and_update_follow_data(self, account_id):
                 logger.log_event(op, "user profile info updated!")
 
             # Add new changes
-            logger.log_event(op, "adding user new changes...")
-            for pk in new_followers_set:
-                changes.append(build_change(pk, FollowerChangeStatusEnum.NEW_FOLLOW, new_followers_dict))
+            if not FollowerChange.objects.filter(
+                    account=account, user_pk__in=new_followers_set,
+                    change_type=FollowerChangeStatusEnum.NEW_FOLLOW).exists():
+                for pk in new_followers_set:
+                    changes.append(build_change(pk, FollowerChangeStatusEnum.NEW_FOLLOW, new_followers_dict))
 
-            for pk in unfollowers_set:
-                changes.append(build_change(pk, FollowerChangeStatusEnum.UNFOLLOW, old_followers_dict))
+            if not FollowerChange.objects.filter(
+                    account=account, user_pk__in=unfollowers_set,
+                    change_type=FollowerChangeStatusEnum.UNFOLLOW).exists():
+                for pk in unfollowers_set:
+                    changes.append(build_change(pk, FollowerChangeStatusEnum.UNFOLLOW, old_followers_dict))
 
-            for pk in not_back_set:
-                changes.append(build_change(pk, FollowerChangeStatusEnum.NOT_BACK, new_followings_dict))
+            if not FollowerChange.objects.filter(
+                    account=account, user_pk__in=not_back_set,
+                    change_type=FollowerChangeStatusEnum.NOT_BACK).exists():
+                for pk in not_back_set:
+                    changes.append(build_change(pk, FollowerChangeStatusEnum.NOT_BACK, new_followings_dict))
 
-            for pk in mutual_set:
-                changes.append(build_change(pk, FollowerChangeStatusEnum.MUTUAL, new_followings_dict))
+            if not FollowerChange.objects.filter(
+                    account=account, user_pk__in=mutual_set,
+                    change_type=FollowerChangeStatusEnum.MUTUAL).exists():
+                for pk in mutual_set:
+                    changes.append(build_change(pk, FollowerChangeStatusEnum.MUTUAL, new_followings_dict))
 
-            bulk_insert_in_batches(FollowerChange, changes)
-            logger.log_event(op, f"deleting user expire changes...")
+            if changes:
+                logger.log_event(op, "adding user new changes...")
+                bulk_insert_in_batches(FollowerChange, changes)
+                logger.log_event(op, f"deleting user expire changes...")
+
+                # Create internal change notifications
+                notify_change.delay([c.id for c in changes])
             # Delete expired Changes...
             FollowerChange.objects.filter(
                 Q(account=account) &
@@ -200,10 +215,6 @@ def analyze_and_update_follow_data(self, account_id):
                         Q(change_type=FollowerChangeStatusEnum.UNFOLLOW, user_pk__in=new_followers_set)
                 )
             ).delete()
-
-            # Create internal change notifications
-            if changes:
-                notify_change.delay([c.id for c in changes])
 
             # Add new followers
             if new_followers_set:

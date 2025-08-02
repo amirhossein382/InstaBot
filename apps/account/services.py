@@ -5,11 +5,16 @@ from django.contrib.sessions.models import Session
 from django.contrib.auth import get_user_model, SESSION_KEY
 from instagrapi import Client
 
+from apps.proxy.services import ProxyService
 from apps.core.utils import Logger
 from .models import InstagramAccount
-from .exceptions import UserUnActiveException, BadPassword
+from .exceptions import (
+    UserUnActiveException, BadPassword, ProxyError,
+    HTTPError, ClientConnectionError, GenericRequestError
+)
 
 logger = Logger()
+proxy_svc = ProxyService()
 
 
 class AccountConfig:
@@ -26,12 +31,17 @@ class AccountConfig:
     @staticmethod
     def get_client():
         client = Client()
-        client.delay_range = range(1, 4)
+        client.delay_range = range(3, 6)
         return client
 
     def get_account_client(self, account: InstagramAccount):
+        proxy, err = proxy_svc.get_user_valid_proxy(account=account)
+        if not proxy:
+            raise ProxyError(str(err))
+
         client = self.get_client()
         client.set_settings(json.loads(account.client_settings))
+        client.set_proxy(proxy)
         return client
 
     def create_device_settings(self, device: dict):
@@ -61,10 +71,13 @@ class AccountService:
             if data.get(SESSION_KEY) == str(user.id):
                 session.delete()
 
-    def login_by_user_pass(self, username, password, device, code=None):
+    def login_by_user_pass(self, username, password, device, proxy:str, code=None):
         op = "login_by_user_pass"
         client = self.config.get_client()
+        client.set_proxy(proxy)
         ig_settings_is_correct = False
+        max_retries = 3
+        retries = 0
         try:
             user = self.User.objects.get(username=username)
             logger.log_event(op, log_data="User already exists")
@@ -73,19 +86,29 @@ class AccountService:
                     raise UserUnActiveException()
 
                 account = InstagramAccount.objects.get(user=user)
+                for _ in range(max_retries):
+                    retries += 1
+                    try:
+                        client.set_settings(json.loads(account.client_settings))
+                        client.get_timeline_feed()
+                        logger.log_event(op, log_data="User instagram session is valid.")
+                    except (ProxyError, HTTPError, GenericRequestError, ClientConnectionError) as err:
+                        logger.log_event(op,
+                                         f"Connection error, retries :{retries}/{max_retries} -->{str(err)}")
+                        if retries == max_retries:
+                            logger.log_event(op, f"attempt {retries}/{max_retries}: {proxy} is not working...")
+                            raise ProxyError(f"{proxy} is not working!")
 
-                try:
-                    client.set_settings(json.loads(account.client_settings))
-                    client.get_timeline_feed()
-                    logger.log_event(op, log_data="User instagram session is valid.")
-                except Exception as err:
-                    logger.log_event(op, log_data=f"User instagram session is not valid.-->{err}", level="ERROR")
-                    client.set_settings({})  # remove invalid settings
-                    client.set_device(device=json.loads(account.client_settings["device_settings"]))
-                    client.set_user_agent(json.loads(account.client_settings["user_agent"]))
-                    client.set_uuids(json.loads(account.client_settings["uuids"]))
-                else:
-                    ig_settings_is_correct = True
+                    except Exception as err:
+                        logger.log_event(op, log_data=f"User instagram session is not valid.-->{err}", level="ERROR")
+                        client.set_settings({})  # remove invalid settings
+                        client.set_device(device=json.loads(account.client_settings["device_settings"]))
+                        client.set_user_agent(json.loads(account.client_settings["user_agent"]))
+                        client.set_uuids(json.loads(account.client_settings["uuids"]))
+                        break
+                    else:
+                        ig_settings_is_correct = True
+                        break
 
             else:
                 raise BadPassword("Your account password is wrong!")
@@ -98,7 +121,6 @@ class AccountService:
             client.set_user_agent(user_agent)
 
         if not ig_settings_is_correct:
-
             if code is not None:
                 logger.log_event(op, log_data="Login user to instagram with verification code")
                 print(code)

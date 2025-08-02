@@ -15,7 +15,11 @@ def upload_media_to_instagram(task_id):
     op = upload_media_to_instagram.__name__
     logger.log_event(op, log_data=f"task {task_id} is running...")
     task = MediaTask.objects.select_related("account").get(id=task_id)
-    client = account_svc.config.get_account_client(task.account)
+    try:
+        client = account_svc.config.get_account_client(task.account)
+    except Exception as err:
+        logger.log_event(op, log_data=f"proxy error accord --> {str(err)}")
+        return
 
     try:
         task.to_state_uploading()

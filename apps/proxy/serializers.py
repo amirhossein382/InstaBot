@@ -6,8 +6,11 @@ proxy_svc = ProxyService()
 
 
 class ProxySerializer(serializers.Serializer):
-    temp_id = serializers.UUIDField(required=True,allow_null=False)
-    proxies = serializers.CharField(required=True,allow_null=False)
+    temp_id = serializers.UUIDField(required=True)
+    proxy = serializers.CharField(required=True, allow_null=False)
 
-    def validate_proxies(self, value):
-        pass
+    def validate_proxy(self, value):
+        if not proxy_svc.is_valid_proxy_format(value):
+            raise serializers.ValidationError(f"Invalid proxy format: {value}")
+
+        return value

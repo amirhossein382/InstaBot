@@ -11,16 +11,19 @@ from rest_framework.views import APIView
 from apps.core.utils import Logger
 from apps.profiles.signals import profile_initialized
 from apps.profiles.services import ProfileService
+from apps.proxy.services import ProxyService
 from .models import InstagramAccount
 from .serializers import LoginSerializer
 from .services import AccountService
 from .exceptions import (
     BadPassword, PleaseWaitFewMinutes, LoginRequired,
-    base_response_with_error, ChallengeRequired, ClientConnectionError
+    base_response_with_error, ChallengeRequired, ClientConnectionError,
+    ProxyError, HTTPError, GenericRequestError
 )
 
 account_svc = AccountService()
 profile_svc = ProfileService()
+proxy_svc = ProxyService()
 User = get_user_model()
 logger = Logger()
 
@@ -34,87 +37,102 @@ class LoginView(APIView):
         print(verification_code)
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
+        proxy, err = proxy_svc.get_user_valid_proxy(temp_id=serializer.validated_data["temp_id"])
 
-        try:
-            client = account_svc.login_by_user_pass(
-                username=serializer.validated_data["username"],
-                password=serializer.validated_data["password"],
-                device=serializer.validated_data["device_settings"],
-                code=verification_code
-            )
-        except BadPassword as msg:
-            logger.log_event(self.__class__.__name__, log_data=" login failed because bad password", level="ERROR")
-            return base_response_with_error(msg=str(msg), _status=status.HTTP_401_UNAUTHORIZED)
-        except PleaseWaitFewMinutes as msg:
-            logger.log_event(self.__class__.__name__, log_data="login failed because throttled", level="ERROR")
-            return base_response_with_error(msg=str(msg), _status=status.HTTP_202_ACCEPTED)
-        except LoginRequired:
-            logger.log_event(self.__class__.__name__, log_data="login failed because blocked", level="ERROR")
-            return base_response_with_error(
-                msg="Too many request, try after 30 minutes.",
-                _status=status.HTTP_400_BAD_REQUEST
-            )
-        except ChallengeRequired:
-            logger.log_event(self.__class__.__name__, log_data="login failed because challenge required",
-                             level="ERROR")
-            return base_response_with_error(
-                msg='Open your browser and login to your account for fix Challenge Required',
-                _status=status.HTTP_400_BAD_REQUEST
-            )
-        except ClientConnectionError as err:
-            logger.log_event(self.__class__.__name__, log_data=f"login failed because connection error -->{str(err)}",
-                             level="ERROR")
-            return base_response_with_error(
-                msg='Connection error.',
-                _status=status.HTTP_400_BAD_REQUEST
-            )
-        except Exception as err:
-            logger.log_event(
-                self.__class__.__name__, log_data=f" login failed because unknown error ---> {err}",
-                level="WARNING"
-            )
-            if "EOF when reading a line" in str(err):
-                return base_response_with_error(
-                    msg="Open to your instagram app and accept your login and try again or go to instagram website and login to your account then try to login here again",
-                    _status=status.HTTP_400_BAD_REQUEST
-                )
-            elif "We can't find an account with" in str(err):
-                return base_response_with_error(
-                    msg=str(err),
-                    _status=status.HTTP_400_BAD_REQUEST
-                )
-
-            return base_response_with_error(
-                msg=" login failed because unknown error!",
-                _status=status.HTTP_400_BAD_REQUEST
-            )
-        else:
-            with transaction.atomic():
-                user, created = User.objects.get_or_create(
+        if proxy:
+            try:
+                client = account_svc.login_by_user_pass(
                     username=serializer.validated_data["username"],
-                    defaults={
-                        "password": make_password(serializer.validated_data['password']),
-                    }
+                    password=serializer.validated_data["password"],
+                    device=serializer.validated_data["device_settings"],
+                    proxy=proxy,
+                    code=verification_code
                 )
-                account, account_created = InstagramAccount.objects.update_or_create(
-                    user=user,
-                    defaults={
-                        "client_settings": json.dumps(client.get_settings()),
-                    },
-                    create_defaults={
-                        "client_settings": json.dumps(client.get_settings()),
-                        "client_pk": client.user_id
-                    }
+            except BadPassword as msg:
+                logger.log_event(self.__class__.__name__, log_data=" login failed because bad password", level="ERROR")
+                return base_response_with_error(msg=str(msg), _status=status.HTTP_401_UNAUTHORIZED)
+            except PleaseWaitFewMinutes as msg:
+                logger.log_event(self.__class__.__name__, log_data="Login failed because throttled", level="ERROR")
+                return base_response_with_error(msg=str(msg), _status=status.HTTP_202_ACCEPTED)
+            except LoginRequired:
+                logger.log_event(self.__class__.__name__, log_data="Login failed because blocked", level="ERROR")
+                return base_response_with_error(
+                    msg="Too many request, try after 30 minutes.",
+                    _status=status.HTTP_400_BAD_REQUEST
                 )
-            if created:
-                user.full_clean()
-                user.save()
+            except ChallengeRequired:
+                logger.log_event(self.__class__.__name__, log_data=":Login failed because challenge required",
+                                 level="ERROR")
+                return base_response_with_error(
+                    msg='Open your browser and login to your account for fix Challenge Required',
+                    _status=status.HTTP_400_BAD_REQUEST
+                )
+            except(ProxyError, HTTPError, GenericRequestError, ClientConnectionError) as err:
+                logger.log_event(self.__class__.__name__,
+                                 log_data=f"Login failed because connection error -->{str(err)}",
+                                 level="ERROR")
+                return base_response_with_error(
+                    msg='Connection error.',
+                    _status=status.HTTP_400_BAD_REQUEST
+                )
+            except Exception as err:
+                logger.log_event(
+                    self.__class__.__name__, log_data=f"Login failed because unknown error ---> {err}",
+                    level="WARNING"
+                )
+                if "EOF when reading a line" in str(err):
+                    return base_response_with_error(
+                        msg="Open to your instagram app and accept your login and try again or go to instagram website and login to your account then try to login here again",
+                        _status=status.HTTP_400_BAD_REQUEST
+                    )
+                elif "We can't find an account with" in str(err):
+                    return base_response_with_error(
+                        msg=str(err),
+                        _status=status.HTTP_400_BAD_REQUEST
+                    )
 
-            if account_created:
-                account.save()
+                return base_response_with_error(
+                    msg=" login failed because unknown error!",
+                    _status=status.HTTP_400_BAD_REQUEST
+                )
+            else:
+                with transaction.atomic():
+                    user, created = User.objects.get_or_create(
+                        username=serializer.validated_data["username"],
+                        defaults={
+                            "password": make_password(serializer.validated_data['password']),
+                        }
+                    )
+                    account, account_created = InstagramAccount.objects.update_or_create(
+                        user=user,
+                        defaults={
+                            "client_settings": json.dumps(client.get_settings()),
+                        },
+                        create_defaults={
+                            "client_settings": json.dumps(client.get_settings()),
+                            "client_pk": client.user_id
+                        }
+                    )
+                if created:
+                    user.full_clean()
+                    user.save()
 
-            login(request=request, user=user)
-            return Response(data="Logged in success")
+                if account_created:
+                    account.save()
+
+                proxy_svc.set_account_proxy(temp_id=serializer.validated_data["temp_id"], account=account)
+                login(request=request, user=user)
+                return Response(data="Logged in success")
+
+        else:
+            if err is None:
+                return base_response_with_error(
+                    f"Account does not have a proxy.", _status=status.HTTP_401_UNAUTHORIZED
+                )
+            else:
+                return base_response_with_error(
+                    f"Proxy error --> {str(err)}", _status=status.HTTP_401_UNAUTHORIZED
+                )
 
 
 class LogoutView(APIView):
