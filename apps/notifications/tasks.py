@@ -10,7 +10,7 @@ notification_svc = NotificationService()
 
 @shared_task
 def notify_change(change_ids: list[int]):
-    changes = FollowerChange.objects.filter(id__in=change_ids)
+    changes = FollowerChange.objects.filter(user_pk__in=change_ids)
     for change in changes:
         if change.change_type == FollowerChangeStatusEnum.NEW_FOLLOW:
             Notification.create_new_follower_notif(change)

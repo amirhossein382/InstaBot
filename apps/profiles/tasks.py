@@ -164,6 +164,11 @@ def analyze_and_update_follow_data(self, account_id):
             for i in range(0, len(objects), batch_size):
                 model_cls.objects.bulk_create(objects[i:i + batch_size])
 
+        def append_changes(pks, change_type, source_dict, already_changes):
+            for user_pk in pks:
+                if (user_pk, change_type) not in already_changes:
+                    changes.append(build_change(user_pk, change_type, source_dict))
+
         with transaction.atomic():
             # Update profile...
             logger.log_event(op, "updating user profile info ...")
@@ -172,49 +177,45 @@ def analyze_and_update_follow_data(self, account_id):
                 serializer.save()
                 logger.log_event(op, "user profile info updated!")
 
+            existing_changes = set(
+                FollowerChange.objects.filter(
+                    account=account,
+                    user_pk__in=(
+                            new_followers_set |
+                            unfollowers_set |
+                            not_back_set |
+                            mutual_set
+                    )
+                ).values_list('user_pk', 'change_type')
+            )
+
             # Add new changes
-            if not FollowerChange.objects.filter(
-                    account=account, user_pk__in=new_followers_set,
-                    change_type=FollowerChangeStatusEnum.NEW_FOLLOW).exists():
-                for pk in new_followers_set:
-                    changes.append(build_change(pk, FollowerChangeStatusEnum.NEW_FOLLOW, new_followers_dict))
-
-            if not FollowerChange.objects.filter(
-                    account=account, user_pk__in=unfollowers_set,
-                    change_type=FollowerChangeStatusEnum.UNFOLLOW).exists():
-                for pk in unfollowers_set:
-                    changes.append(build_change(pk, FollowerChangeStatusEnum.UNFOLLOW, old_followers_dict))
-
-            if not FollowerChange.objects.filter(
-                    account=account, user_pk__in=not_back_set,
-                    change_type=FollowerChangeStatusEnum.NOT_BACK).exists():
-                for pk in not_back_set:
-                    changes.append(build_change(pk, FollowerChangeStatusEnum.NOT_BACK, new_followings_dict))
-
-            if not FollowerChange.objects.filter(
-                    account=account, user_pk__in=mutual_set,
-                    change_type=FollowerChangeStatusEnum.MUTUAL).exists():
-                for pk in mutual_set:
-                    changes.append(build_change(pk, FollowerChangeStatusEnum.MUTUAL, new_followings_dict))
+            append_changes(new_followers_set, FollowerChangeStatusEnum.NEW_FOLLOW, new_followers_dict, existing_changes)
+            append_changes(unfollowers_set, FollowerChangeStatusEnum.UNFOLLOW, old_followers_dict, existing_changes)
+            append_changes(not_back_set, FollowerChangeStatusEnum.NOT_BACK, new_followings_dict, existing_changes)
+            append_changes(mutual_set, FollowerChangeStatusEnum.MUTUAL, new_followings_dict, existing_changes)
 
             if changes:
                 logger.log_event(op, "adding user new changes...")
                 bulk_insert_in_batches(FollowerChange, changes)
-                logger.log_event(op, f"deleting user expire changes...")
 
                 # Create internal change notifications
-                notify_change.delay([c.id for c in changes])
-            # Delete expired Changes...
-            FollowerChange.objects.filter(
-                Q(account=account) &
-                (
-                        Q(change_type=FollowerChangeStatusEnum.MUTUAL, user_pk__in=unfollowers_set | unfollowings_set) |
-                        Q(change_type=FollowerChangeStatusEnum.NOT_BACK,
-                          user_pk__in=unfollowings_set | new_followers_set) |
-                        Q(change_type=FollowerChangeStatusEnum.NEW_FOLLOW, user_pk__in=unfollowers_set) |
-                        Q(change_type=FollowerChangeStatusEnum.UNFOLLOW, user_pk__in=new_followers_set)
-                )
-            ).delete()
+                logger.log_event(op, "notifying changes...")
+                notify_change.delay([c.user_pk for c in changes])
+
+                # Delete expired Changes...
+                logger.log_event(op, f"deleting user expire changes...")
+                FollowerChange.objects.filter(
+                    Q(account=account) &
+                    (
+                            Q(change_type=FollowerChangeStatusEnum.MUTUAL,
+                              user_pk__in=unfollowers_set | unfollowings_set) |
+                            Q(change_type=FollowerChangeStatusEnum.NOT_BACK,
+                              user_pk__in=unfollowings_set | new_followers_set) |
+                            Q(change_type=FollowerChangeStatusEnum.NEW_FOLLOW, user_pk__in=unfollowers_set) |
+                            Q(change_type=FollowerChangeStatusEnum.UNFOLLOW, user_pk__in=new_followers_set)
+                    )
+                ).delete()
 
             # Add new followers
             if new_followers_set:
@@ -247,10 +248,11 @@ def analyze_and_update_follow_data(self, account_id):
                 bulk_insert_in_batches(Following, new_following_objs)
 
             # Remove expire follower, following
-            logger.log_event(op, "deleting user expire follower, followings ...")
             if unfollowers_set:
+                logger.log_event(op, "deleting user expire followers...")
                 Follower.objects.filter(account=account, user_pk__in=unfollowers_set).delete()
             if unfollowings_set:
+                logger.log_event(op, "deleting user expire followings...")
                 Following.objects.filter(account=account, user_pk__in=unfollowings_set).delete()
 
 
