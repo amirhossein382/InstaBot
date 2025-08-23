@@ -1,4 +1,5 @@
 import json
+import random
 
 from django.utils import timezone
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
@@ -16,8 +17,8 @@ class ProfileConfig:
 
     def create_analyze_growth_logs_periodic_task(self, account_id):
         schedule, created = IntervalSchedule.objects.get_or_create(
-            every=15,
-            period=IntervalSchedule.MINUTES,
+            every=1,
+            period=IntervalSchedule.DAYS,
         )
         task_name_ = self.growth_data_task.format(account_id=account_id)
         if not PeriodicTask.objects.filter(name=task_name_).exists():
@@ -45,7 +46,7 @@ class ProfileConfig:
 
     def create_analyze_update_follow_data_periodic_task(self, account_id):
         schedule, created = IntervalSchedule.objects.get_or_create(
-            every=15,
+            every=10,
             period=IntervalSchedule.MINUTES,
         )
         task_name_ = self.update_follow_task.format(account_id=account_id)
@@ -70,6 +71,21 @@ class ProfileConfig:
             else:
                 task.enabled = True
             task.save()
+
+    def reschedule_analyze_update_follow_data_periodic_task(self, account_id):
+        try:
+            task = PeriodicTask.objects.get(name=self.update_follow_task.format(account_id=account_id))
+        except PeriodicTask.DoesNotExist:
+            pass
+        else:
+            next_run_time = random.randint(5, 20)
+            schedule, _ = IntervalSchedule.objects.get_or_create(
+                every=next_run_time,
+                period=IntervalSchedule.MINUTES,
+            )
+            task.interval = schedule
+            task.save()
+            return next_run_time
 
 
 class ProfileService:

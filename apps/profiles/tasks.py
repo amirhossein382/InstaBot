@@ -255,6 +255,12 @@ def analyze_and_update_follow_data(self, account_id):
                 logger.log_event(op, "deleting user expire followings...")
                 Following.objects.filter(account=account, user_pk__in=unfollowings_set).delete()
 
+    finally:
+        next_run_time = profile_svc.config.reschedule_analyze_update_follow_data_periodic_task(account_id)
+        logger.log_event(
+            op, f"Rescheduling follow data task to every {next_run_time} hours..."
+        )
+
 
 @shared_task
 def analyze_account_growth_logs(account_id):

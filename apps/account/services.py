@@ -100,11 +100,12 @@ class AccountService:
                             raise ProxyError(f"{proxy} is not working!")
 
                     except Exception as err:
-                        logger.log_event(op, log_data=f"User instagram session is not valid.-->{err}", level="ERROR")
+                        logger.log_event(op, log_data=f"User instagram session is not valid --> {err}", level="ERROR")
                         client.set_settings({})  # remove invalid settings
-                        client.set_device(device=json.loads(account.client_settings["device_settings"]))
-                        client.set_user_agent(json.loads(account.client_settings["user_agent"]))
-                        client.set_uuids(json.loads(account.client_settings["uuids"]))
+                        settings = json.loads(account.client_settings)
+                        client.set_device(device=settings["device_settings"])
+                        client.set_user_agent(settings["user_agent"])
+                        client.set_uuids(settings["uuids"])
                         break
                     else:
                         ig_settings_is_correct = True
