@@ -13,9 +13,9 @@ def notify_change(change_ids: list[int]):
     changes = FollowerChange.objects.filter(user_pk__in=change_ids)
     for change in changes:
         if change.change_type == FollowerChangeStatusEnum.NEW_FOLLOW:
-            Notification.create_new_follower_notif(change)
+            Notification.create_new_follower_notif(change.account, change)
         elif change.change_type == FollowerChangeStatusEnum.UNFOLLOW:
-            Notification.create_un_follower_notif(change)
+            Notification.create_un_follower_notif(change.account, change)
 
 
 @shared_task

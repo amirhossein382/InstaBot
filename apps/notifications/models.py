@@ -32,24 +32,24 @@ class Notification(models.Model):
         )
 
     @classmethod
-    def create_new_follower_notif(cls, follower_change):
+    def create_new_follower_notif(cls,account, follower_change):
         data = {
             "profile_pic_url": follower_change.profile_pic_url,
             "full_name": follower_change.full_name,
             "username": follower_change.username
         }
         message = f"{follower_change.username} followed you recently"
-        return cls._create_relation_notification(account=follower_change, message=message, extra_data=data)
+        return cls._create_relation_notification(account=account, message=message, extra_data=data)
 
     @classmethod
-    def create_un_follower_notif(cls, follower_change):
+    def create_un_follower_notif(cls,account, follower_change):
         data = {
             "profile_pic_url": follower_change.profile_pic_url,
             "full_name": follower_change.full_name,
             "username": follower_change.username
         }
         message = f"{follower_change.username} un followed you recently"
-        return cls._create_relation_notification(account=follower_change, message=message, extra_data=data)
+        return cls._create_relation_notification(account=account, message=message, extra_data=data)
 
 
 class PushNotifDevice(BaseTimeStampedModel):
