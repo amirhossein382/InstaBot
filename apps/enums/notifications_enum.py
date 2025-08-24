@@ -2,12 +2,12 @@ from django.utils.translation import gettext_lazy as _
 
 
 class NotificationsTypeEnum:
-    RELATIONS = "relations"
-    ERRORS = "errors"
+    RELATION = "relation"
+    ERROR = "errors"
 
-    ALL_TOPICS = (RELATIONS, ERRORS)
+    ALL_TOPICS = (RELATION, ERROR)
 
     CHOICES = (
-        (RELATIONS, _("Relations")),
-        (ERRORS, _("Errors")),
+        (RELATION, _("Relation")),
+        (ERROR, _("Error")),
     )

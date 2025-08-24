@@ -4,7 +4,7 @@ from firebase_admin import credentials
 from django.conf import settings
 from django.utils import timezone
 
-from .models import PushNotifDevice
+from .models import PushNotifDevice, Notification
 from apps.core.utils import Logger
 
 logger = Logger()
@@ -22,7 +22,13 @@ class NotificationService:
         cred = credentials.Certificate(settings.FIREBASE_CRED_PATH)
         initialize_app(cred)
 
-    def send_push_notif_to_account(self, account, title, body):
+    @classmethod
+    def create_notification(cls, account, profile, title, message, notif_type):
+        return Notification.objects.create(
+            account=account, profile=profile, title=title, message=message, type=notif_type
+        )
+
+    def send_push_notif_to_account(self, account, title, body, image=None):
         op = f"{self.Op}.send_push_notif_to_account"
         try:
             device = PushNotifDevice.objects.get(account=account, is_active=True)
@@ -31,7 +37,7 @@ class NotificationService:
 
         if device.is_active:
             message = messaging.Message(
-                notification=messaging.Notification(title=title, body=body),
+                notification=messaging.Notification(title=title, body=body, image=image),
                 token=device.token
             )
             try:
@@ -48,8 +54,10 @@ class NotificationService:
                     op,
                     log_data=f"failed to send notif --> {str(err)}", level="ERROR"
                 )
-        logger.log_event(
-            op,
-            log_data="notification device is not active!"
-        )
-        return None
+
+        else:
+            logger.log_event(
+                op,
+                log_data="notification device is not active!"
+            )
+            return None

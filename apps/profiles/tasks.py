@@ -5,15 +5,16 @@ from celery import shared_task, Task
 
 from apps.account.exceptions import PleaseWaitFewMinutes, LoginRequired, ChallengeRequired, FeedbackRequired
 from apps.account.models import InstagramAccount
-from apps.notifications.tasks import send_push_notif_to_account, notify_change
-from apps.notifications.models import Notification
+from apps.notifications.services import NotificationService
+from apps.notifications import tasks as notifications_tasks
 from apps.core.utils import Logger
-from apps.enums import FollowerChangeStatusEnum
+from apps.enums import FollowerChangeStatusEnum, NotificationsTypeEnum
 from .models import Follower, Following, FollowerChange, Profile, AccountGrowthLog
 from .serializers import ProfileSerializer
 from .services import ProfileService
 
 profile_svc = ProfileService()
+notification_svc = NotificationService()
 logger = Logger()
 reenable_time = now() + timedelta(hours=12)
 
@@ -36,9 +37,11 @@ def analyze_and_update_follow_data(self, account_id):
         logger.log_event(op, f"not authenticated!. pausing tasks for user {account.user.id}", level="WARNING")
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
-        # send_push_notif_to_account.delay(account_id, "Logged Out", "Your account logged out. please login again!")
-        Notification.create_error_notification(
-            account, message="Your account logged out. please login again!"
+        notifications_tasks.create_notification(
+            account_id=account_id, profile=None, title="Authentication",
+            message="Your account logged out. please login again!",
+            notif_type=NotificationsTypeEnum.ERROR
+            # push=True
         )
         return
 
@@ -50,11 +53,11 @@ def analyze_and_update_follow_data(self, account_id):
 
     except PleaseWaitFewMinutes as err:
         logger.log_event(op, f"Rate limited: delaying 1 hour for user {account.user.id} --> {str(err)}", level="ERROR")
-        # send_push_notif_to_account.delay(
-        #     account_id, "Rate Limit", "Rate limit from instagram, delay analys for 1 hour!"
-        # )
-        Notification.create_error_notification(
-            account, message="Rate limit from instagram, delay analys for 1 hour"
+        notifications_tasks.create_notification(
+            account_id=account_id, profile=None, title="Rate Limit",
+            message="Rate limit from instagram, delay analys for 1 hour",
+            notif_type=NotificationsTypeEnum.ERROR,
+            # push=True
         )
         raise self.retry(exc=err, countdown=3600)
 
@@ -63,23 +66,23 @@ def analyze_and_update_follow_data(self, account_id):
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
         profile_svc.account_svc.logout_django_by_user(account.user)
-        # send_push_notif_to_account.delay(
-        #     account_id, "Logged Out", "Your account logged out. please login again!"
-        # )
-        Notification.create_error_notification(account, message="Your account logged out. please login again!")
+        notifications_tasks.create_notification(
+            account_id=account_id, profile=None, title="Authentication",
+            message="Your account logged out. please login again!",
+            notif_type=NotificationsTypeEnum.ERROR,
+            # push=True
+        )
 
     except ChallengeRequired as err:
         logger.log_event(op, log_data=f" getting new data failed because challenge required -> {str(err)}",
                          level="ERROR")
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
-        # send_push_notif_to_account.delay(
-        #     account_id, "Challenge Required",
-        #     "Challenge required from instagram. go to instagram website and login to resolve challenges"
-        # )
-        Notification.create_error_notification(
-            account,
-            message="Challenge required from instagram. go to instagram website and login to resolve challenges"
+        notifications_tasks.create_notification(
+            account_id=account_id, profile=None, title="Challenge",
+            message="Challenge required from instagram. go to instagram website and login to resolve challenges",
+            notif_type=NotificationsTypeEnum.ERROR,
+            # push=True
         )
 
     except FeedbackRequired as err:
@@ -95,22 +98,23 @@ def analyze_and_update_follow_data(self, account_id):
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task.apply_async(
             (account_id, False,), eta=reenable_time
         )
-        # send_push_notif_to_account.delay(
-        #     account_id, "FeedBack Required",
-        #     "Feedback required from instagram. pausing analyses for 12 hours"
-        # )
-        Notification.create_error_notification(
-            account, message="Feedback required from instagram. pausing analyses for 12 hours!"
+        notifications_tasks.create_notification(
+            account_id=account_id, profile=None, title="Feedback Required",
+            message="Feedback required from instagram. paused analyses for 12 hours!",
+            notif_type=NotificationsTypeEnum.ERROR,
+            # push=True
         )
 
     except Exception as err:
         logger.log_event(op, f"[{account_id}] Unhandled exception during analyze: {str(err)}", level="WARNING")
         profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
         profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
-        # send_push_notif_to_account.delay(
-        #     account_id, "Unknown Error",
-        #     "Analysed failed for unknown error. try to open app or login again"
-        # )
+        notifications_tasks.create_notification(
+            account_id=account_id, profile=None, title="Unknown Error",
+            message="Analysed failed for unknown error. try to open app or login again.",
+            notif_type=NotificationsTypeEnum.ERROR,
+            # push=True
+        )
 
     else:
         logger.log_event(op, f"analyze instagram new data for user {account.user.id}")
@@ -201,7 +205,7 @@ def analyze_and_update_follow_data(self, account_id):
 
                 # Create internal change notifications
                 logger.log_event(op, "notifying changes...")
-                notify_change.delay([c.user_pk for c in changes])
+                notifications_tasks.notify_changes.delay([c.user_pk for c in changes])
 
                 # Delete expired Changes...
                 logger.log_event(op, f"deleting user expire changes...")

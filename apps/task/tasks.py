@@ -14,7 +14,7 @@ logger = Logger()
 def upload_media_to_instagram(task_id):
     op = upload_media_to_instagram.__name__
     logger.log_event(op, log_data=f"task {task_id} is running...")
-    task = MediaTask.objects.select_related("account").get(id=task_id)
+    task = MediaTask.objects.get(id=task_id)
     try:
         client = account_svc.config.get_account_client(task.account)
     except Exception as err:
