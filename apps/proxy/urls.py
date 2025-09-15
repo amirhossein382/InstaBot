@@ -1,7 +1,8 @@
 from django.urls import path
 
-from .views import CreateProxyAPIView
+from .views import ProxyCreateAPIView, ProxyListAPIView
 
 urlpatterns = [
-    path('', CreateProxyAPIView.as_view(), name='proxy'),
+    path('', ProxyListAPIView.as_view()),
+    path('create/', ProxyCreateAPIView.as_view(), name="proxy_create"),
 ]

@@ -150,21 +150,30 @@ class AccountInitialView(APIView):
     def get(self, request, *args, **kwargs):
         user = request.user
         account = InstagramAccount.objects.get(user=user)
-        logger.log_event(self.__class__.__name__, log_data="account initial started")
+        if account.is_initialized:
+            logger.log_event(self.__class__.__name__, log_data="account already initialized!.")
+            return Response(data="initialized successfully", status=status.HTTP_201_CREATED)
+
+        logger.log_event(self.__class__.__name__, log_data="initializing account...")
         try:
+            client = account_svc.config.get_account_client(account)
             with transaction.atomic():
                 logger.log_event(self.__class__.__name__, log_data="fetching profile..")
-                profile_svc.fetch_profile_info(account)
+                profile_svc.fetch_profile_info(account, client)
                 logger.log_event(self.__class__.__name__, log_data="fetching followers..")
-                followers = profile_svc.fetch_followers(account)
+                followers = profile_svc.fetch_followers(account, client)
                 logger.log_event(self.__class__.__name__, log_data="fetching followings..")
-                followings = profile_svc.fetch_followings(account)
+                followings = profile_svc.fetch_followings(account, client)
                 logger.log_event(self.__class__.__name__, log_data="fetching analyses..")
                 profile_svc.analyze_follower_changes(account=account, followers=followers, followings=followings)
                 transaction.on_commit(lambda: profile_initialized.send(
                     sender=self.__class__.__name__, account_id=account.id
                 ))
-
+        except ProxyError as err:
+            logger.log_event(
+                self.__class__.__name__, f"Connection error on initializing: {str(err)}", level="ERROR"
+            )
+            return base_response_with_error(msg=f"Connection error: {str(err)}", _status=status.HTTP_305_USE_PROXY)
         except Exception as e:
             logger.log_event(self.__class__.__name__, log_data=f"account initial failed --> {str(e)}", level="ERROR")
             return Response(data={"detail": f"Initialization failed: {str(e)}"},

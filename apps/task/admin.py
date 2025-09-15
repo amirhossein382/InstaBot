@@ -12,4 +12,4 @@ class MediaTaskAdmin(admin.ModelAdmin):
         return obj.account.username
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_releated("account")
+        return super().get_queryset(request).select_related("account")

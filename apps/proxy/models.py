@@ -16,14 +16,6 @@ class Proxy(BaseTimeStampedModel):
     is_valid = models.BooleanField(default=True)
 
     class Meta:
-        unique_together = (['account', 'proxy'])
-
-    @classmethod
-    def create_temp_proxy(cls, temp_id, proxy, is_valid):
-        cls.objects.create(temp_id=temp_id, proxy=proxy, is_valid=is_valid)
-
-    @classmethod
-    def set_account_to_proxy(cls, temp_id, account):
-        proxy = cls.objects.get(temp_id=temp_id)
-        proxy.account = account
-        proxy.save()
+        unique_together = (
+            ('account', 'proxy'), ('temp_id', 'proxy'),
+        )

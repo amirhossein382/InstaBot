@@ -1,27 +1,48 @@
 from django.db.models import Q
 from django.db import transaction
 from django.utils.timezone import datetime, now, timedelta
-from celery import shared_task, Task
+from celery import shared_task, Task, exceptions as celery_exceptions
 
-from apps.account.exceptions import PleaseWaitFewMinutes, LoginRequired, ChallengeRequired, FeedbackRequired
+from apps.account.exceptions import (
+    PleaseWaitFewMinutes, LoginRequired, ChallengeRequired, FeedbackRequired,
+    ProxyError,ClientUnauthorizedError
+)
 from apps.account.models import InstagramAccount
 from apps.notifications.services import NotificationService
 from apps.notifications import tasks as notifications_tasks
 from apps.core.utils import Logger
 from apps.enums import FollowerChangeStatusEnum, NotificationsTypeEnum
+from apps.proxy.services import ProxyService
 from .models import Follower, Following, FollowerChange, Profile, AccountGrowthLog
 from .serializers import ProfileSerializer
 from .services import ProfileService
 
 profile_svc = ProfileService()
+proxy_svc = ProxyService()
 notification_svc = NotificationService()
 logger = Logger()
 reenable_time = now() + timedelta(hours=12)
 
 
+def _pause_account_tasks(account: InstagramAccount):
+    profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account.id, pause=True)
+    profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account.id, pause=True)
+    account.is_analyses_paused = True
+    account.save()
+
+
+@shared_task
+def apply_sync_resume_account_tasks(account_id):
+    profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, False)
+    profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, False)
+    account = InstagramAccount.objects.get(id=account_id)
+    account.is_analyses_paused = False
+    account.save()
+
+
 class BaseRetryTask(Task):
     autoretry_for = (ConnectionError, TimeoutError)
-    retry_kwargs = {"max_retries": 2}
+    retry_kwargs = {"max_retries": 3}
     retry_backoff = True
 
 
@@ -31,12 +52,11 @@ def analyze_and_update_follow_data(self, account_id):
     logger.log_event(op, "task is running...")
 
     account = InstagramAccount.objects.select_related("user").get(pk=account_id)
-    if (not account.user.is_authenticated) or (not profile_svc.is_ig_authenticated(account)):
-        profile_svc.account_svc.logout_django_by_user(account.user)
-
-        logger.log_event(op, f"not authenticated!. pausing tasks for user {account.user.id}", level="WARNING")
-        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
-        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
+    if not account.user.is_authenticated:
+        logger.log_event(
+            op, f"not authenticated!. pausing tasks for user {account.user.id}", level="WARNING"
+        )
+        _pause_account_tasks(account)
         notifications_tasks.create_notification(
             account_id=account_id, profile=None, title="Authentication",
             message="Your account logged out. please login again!",
@@ -45,14 +65,25 @@ def analyze_and_update_follow_data(self, account_id):
         )
         return
 
+    if not proxy_svc.check_internet():
+        logger.log_event(
+            op, f"Internet not available!. passing the task {account_id} ...", level="WARNING"
+        )
+        return
+
     try:
+        logger.log_event(op, f"getting client for user {account.user.id}")
+        client = profile_svc.account_svc.config.get_account_client(account)
         logger.log_event(op, f"getting new data from instagram for user {account.user.id}")
-        new_profile_info = profile_svc.load_profile_info(account)
-        new_followers = profile_svc.load_followers(account)
-        new_followings = profile_svc.load_followings(account)
+        new_profile_info = profile_svc.load_profile_info(account, client)
+        new_followers = profile_svc.load_followers(account, client)
+        new_followings = profile_svc.load_followings(account, client)
 
     except PleaseWaitFewMinutes as err:
-        logger.log_event(op, f"Rate limited: delaying 1 hour for user {account.user.id} --> {str(err)}", level="ERROR")
+        logger.log_event(
+            op, f"Rate limited: delaying 1 hour for user {account.user.id} --> {str(err)}",
+            level="ERROR"
+        )
         notifications_tasks.create_notification(
             account_id=account_id, profile=None, title="Rate Limit",
             message="Rate limit from instagram, delay analys for 1 hour",
@@ -62,9 +93,11 @@ def analyze_and_update_follow_data(self, account_id):
         raise self.retry(exc=err, countdown=3600)
 
     except LoginRequired as err:
-        logger.log_event(op, f"Login required: {err} ---> pausing tasks for user {account.user.id}", level="ERROR")
-        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
-        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
+        logger.log_event(
+            op, f"Login required: {err} ---> pausing tasks for user {account.user.id}",
+            level="ERROR"
+        )
+        _pause_account_tasks(account)
         profile_svc.account_svc.logout_django_by_user(account.user)
         notifications_tasks.create_notification(
             account_id=account_id, profile=None, title="Authentication",
@@ -76,8 +109,7 @@ def analyze_and_update_follow_data(self, account_id):
     except ChallengeRequired as err:
         logger.log_event(op, log_data=f" getting new data failed because challenge required -> {str(err)}",
                          level="ERROR")
-        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
-        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
+        _pause_account_tasks(account)
         notifications_tasks.create_notification(
             account_id=account_id, profile=None, title="Challenge",
             message="Challenge required from instagram. go to instagram website and login to resolve challenges",
@@ -90,13 +122,9 @@ def analyze_and_update_follow_data(self, account_id):
             op, log_data=f" getting new data failed because feedback required -->{str(err)}",
             level="ERROR"
         )
-        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
-        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
-        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task.apply_async(
-            (account_id, False,), eta=reenable_time
-        )
-        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task.apply_async(
-            (account_id, False,), eta=reenable_time
+        _pause_account_tasks(account)
+        apply_sync_resume_account_tasks.apply_async(
+            (account_id,), eta=reenable_time
         )
         notifications_tasks.create_notification(
             account_id=account_id, profile=None, title="Feedback Required",
@@ -104,17 +132,42 @@ def analyze_and_update_follow_data(self, account_id):
             notif_type=NotificationsTypeEnum.ERROR,
             # push=True
         )
-
-    except Exception as err:
-        logger.log_event(op, f"[{account_id}] Unhandled exception during analyze: {str(err)}", level="WARNING")
-        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
-        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
+    except ProxyError as err:
+        logger.log_event(
+            op, f"[{account_id}] Proxy error during analyze: {str(err)}", level="ERROR"
+        )
+        try:
+            self.retry(exc=err, countdown=120)
+        except celery_exceptions.MaxRetriesExceededError:
+            _pause_account_tasks(account)
+            notifications_tasks.create_notification(
+                account_id=account_id, profile=None, title="Connection Error",
+                message="Analyses failed for connection error, set another proxy to resum analyses",
+                notif_type=NotificationsTypeEnum.ERROR,
+                # push=True
+            )
+    except ClientUnauthorizedError as err:
+        logger.log_event(
+                op, f"[{account_id}] Authorization error during analyses: {str(err)}", level="ERROR"
+            )
+        _pause_account_tasks(account)
         notifications_tasks.create_notification(
-            account_id=account_id, profile=None, title="Unknown Error",
-            message="Analysed failed for unknown error. try to open app or login again.",
+            account_id=account_id, profile=None, title="Authorization Error",
+            message="Analyses failed for Authorization error, login again!",
             notif_type=NotificationsTypeEnum.ERROR,
             # push=True
         )
+    # except Exception as err:
+    #     logger.log_event(
+    #         op, f"[{account_id}] Unhandled exception during analyses: {str(err)}", level="WARNING"
+    #     )
+    #     _pause_account_tasks(account)
+    #     notifications_tasks.create_notification(
+    #         account_id=account_id, profile=None, title="Unknown Error",
+    #         message="Analysed failed for unknown error. try to open app or login again.",
+    #         notif_type=NotificationsTypeEnum.ERROR,
+    #         # push=True
+    #     )
 
     else:
         logger.log_event(op, f"analyze instagram new data for user {account.user.id}")
@@ -132,6 +185,11 @@ def analyze_and_update_follow_data(self, account_id):
         old_following_pks = set(old_followings_dict.keys())
         new_follower_pks = set(new_followers_dict.keys())
         new_following_pks = set(new_followings_dict.keys())
+
+        logger.log_event(op, f"new profile info-->{new_profile_info}")
+        logger.log_event(op, f"old profile info-->{old_profile_info}")
+        logger.log_event(op, f"new follower pks-->{new_follower_pks}")
+        logger.log_event(op, f"old follower pks-->{old_follower_pks}")
         logger.log_event(op, f"new following pks-->{new_following_pks}")
         logger.log_event(op, f"old following pks-->{old_following_pks}")
 
@@ -194,10 +252,18 @@ def analyze_and_update_follow_data(self, account_id):
             )
 
             # Add new changes
-            append_changes(new_followers_set, FollowerChangeStatusEnum.NEW_FOLLOW, new_followers_dict, existing_changes)
-            append_changes(unfollowers_set, FollowerChangeStatusEnum.UNFOLLOW, old_followers_dict, existing_changes)
-            append_changes(not_back_set, FollowerChangeStatusEnum.NOT_BACK, new_followings_dict, existing_changes)
-            append_changes(mutual_set, FollowerChangeStatusEnum.MUTUAL, new_followings_dict, existing_changes)
+            append_changes(
+                new_followers_set, FollowerChangeStatusEnum.NEW_FOLLOW, new_followers_dict, existing_changes
+            )
+            append_changes(
+                unfollowers_set, FollowerChangeStatusEnum.UNFOLLOW, old_followers_dict, existing_changes
+            )
+            append_changes(
+                not_back_set, FollowerChangeStatusEnum.NOT_BACK, new_followings_dict, existing_changes
+            )
+            append_changes(
+                mutual_set, FollowerChangeStatusEnum.MUTUAL, new_followings_dict, existing_changes
+            )
 
             if changes:
                 logger.log_event(op, "adding user new changes...")
@@ -270,14 +336,7 @@ def analyze_and_update_follow_data(self, account_id):
 def analyze_account_growth_logs(account_id):
     op = analyze_account_growth_logs.__name__
     logger.log_event(op, "task is running...")
-
-    try:
-        account = InstagramAccount.objects.prefetch_related("profile").get(pk=account_id)
-    except InstagramAccount.DoesNotExist:
-        logger.log_event(op, f"Account {account_id} does not exist!")
-        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account_id, pause=True)
-        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account_id, pause=True)
-        return
+    account = InstagramAccount.objects.prefetch_related("profile").get(pk=account_id)
 
     today = datetime.today()
     logger.log_event(op, "update or create growth logs...")

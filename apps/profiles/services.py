@@ -5,7 +5,6 @@ from django.utils import timezone
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from apps.account.services import AccountService
-from apps.account.exceptions import LoginRequired
 from apps.enums import FollowerChangeStatusEnum
 from .serializers import FollowingSerializer, FollowerSerializer, ProfileSerializer
 from .models import FollowerChange
@@ -15,7 +14,7 @@ class ProfileConfig:
     update_follow_task = "analyze_follow_data_user_{account_id}"
     growth_data_task = "analyze_account_growth_logs_{account_id}"
 
-    def create_analyze_growth_logs_periodic_task(self, account_id):
+    def create_analyze_growth_logs_periodic_task(self, account_id:int):
         schedule, created = IntervalSchedule.objects.get_or_create(
             every=1,
             period=IntervalSchedule.DAYS,
@@ -32,7 +31,7 @@ class ProfileConfig:
                 start_time=timezone.now()
             )
 
-    def pause_or_resume_analyze_growth_logs_periodic_task(self, account_id, pause: bool):
+    def pause_or_resume_analyze_growth_logs_periodic_task(self, account_id: int, pause: bool):
         try:
             task = PeriodicTask.objects.get(name=self.growth_data_task.format(account_id=account_id))
         except PeriodicTask.DoesNotExist:
@@ -44,7 +43,7 @@ class ProfileConfig:
                 task.enabled = True
             task.save()
 
-    def create_analyze_update_follow_data_periodic_task(self, account_id):
+    def create_analyze_update_follow_data_periodic_task(self, account_id:int):
         schedule, created = IntervalSchedule.objects.get_or_create(
             every=10,
             period=IntervalSchedule.MINUTES,
@@ -60,7 +59,7 @@ class ProfileConfig:
                 enabled=True,
             )
 
-    def pause_or_resume_analyze_update_follow_data_periodic_task(self, account_id, pause: bool):
+    def pause_or_resume_analyze_update_follow_data_periodic_task(self, account_id:int, pause: bool):
         try:
             task = PeriodicTask.objects.get(name=self.update_follow_task.format(account_id=account_id))
         except PeriodicTask.DoesNotExist:
@@ -72,7 +71,7 @@ class ProfileConfig:
                 task.enabled = True
             task.save()
 
-    def reschedule_analyze_update_follow_data_periodic_task(self, account_id):
+    def reschedule_analyze_update_follow_data_periodic_task(self, account_id:int):
         try:
             task = PeriodicTask.objects.get(name=self.update_follow_task.format(account_id=account_id))
         except PeriodicTask.DoesNotExist:
@@ -93,25 +92,17 @@ class ProfileService:
     config = ProfileConfig()
     batch_size = 1000
 
-    def is_ig_authenticated(self, account):
-        client = self.account_svc.config.get_account_client(account)
-        try:
-            client.get_timeline_feed()
-            return True
-        except LoginRequired:
-            return False
-
-    def load_profile_info(self, account):
-        client = self.account_svc.config.get_account_client(account)
-        data = client.user_info(account.client_pk).dict()
+    @staticmethod
+    def load_profile_info(account, client):
+        data = client.user_info(str(account.client_pk), use_cache=False).dict()
         data["account"] = account.pk
         data["user_pk"] = int(data["pk"])
         data["profile_pic_url"] = str(data["profile_pic_url"])
         return data
 
-    def load_followers(self, account) -> list[dict]:
-        client = self.account_svc.config.get_account_client(account)
-        followers = client.user_followers(str(account.client_pk)).values()
+    @staticmethod
+    def load_followers(account, client) -> list[dict]:
+        followers = client.user_followers(str(account.client_pk), use_cache=False).values()
         data = [{
             "account": account.pk,
             "user_pk": int(follower.pk),
@@ -122,9 +113,9 @@ class ProfileService:
         ]
         return data
 
-    def load_followings(self, account) -> list[dict]:
-        client = self.account_svc.config.get_account_client(account)
-        followings = client.user_following(str(account.client_pk)).values()
+    @staticmethod
+    def load_followings(account, client) -> list[dict]:
+        followings = client.user_following(str(account.client_pk), use_cache=False).values()
         data = [{
             "account": account.pk,
             "user_pk": int(follower.pk),
@@ -135,21 +126,21 @@ class ProfileService:
         ]
         return data
 
-    def fetch_profile_info(self, account):
-        profile_info = self.load_profile_info(account)
+    def fetch_profile_info(self, account, client):
+        profile_info = self.load_profile_info(account, client)
         serializer = ProfileSerializer(data=profile_info)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-    def fetch_followers(self, account) -> list[dict]:
-        data = self.load_followers(account)
+    def fetch_followers(self, account, client) -> list[dict]:
+        data = self.load_followers(account, client)
         serializer = FollowerSerializer(data=data, many=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return data
 
-    def fetch_followings(self, account) -> list[dict]:
-        data = self.load_followings(account)
+    def fetch_followings(self, account, client) -> list[dict]:
+        data = self.load_followings(account, client)
         serializer = FollowingSerializer(data=data, many=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()

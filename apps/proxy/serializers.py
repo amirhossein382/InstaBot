@@ -1,8 +1,15 @@
 from rest_framework import serializers
 
+from .models import Proxy
 from .services import ProxyService
 
 proxy_svc = ProxyService()
+
+
+class ProxyListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Proxy
+        fields = '__all__'
 
 
 class ProxySerializer(serializers.Serializer):

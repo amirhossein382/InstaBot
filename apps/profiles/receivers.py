@@ -29,21 +29,27 @@ def resume_periodic_analysis(sender, request, user, **kwargs):
     except InstagramAccount.DoesNotExist:
         return
 
-    logger.log_event(op, "user logged in, resuming periodic tasks...")
-    profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account.id, pause=False)
-    profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account.id, pause=False)
-    logger.log_event(op, "periodic tasks resumed")
+    if account.is_analyses_paused:
+        logger.log_event(op, "user logged in, resuming periodic tasks...")
+        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account.id, pause=False)
+        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account.id, pause=False)
+        account.is_analyses_paused = False
+        account.save()
+        logger.log_event(op, "periodic tasks resumed")
 
 
 @receiver(user_logged_out)
-def end_periodic_analysis(sender, request, user, **kwargs):
-    op = end_periodic_analysis.__name__
+def pause_periodic_analysis(sender, request, user, **kwargs):
+    op = pause_periodic_analysis.__name__
     try:
         account = InstagramAccount.objects.get(user=user)
     except InstagramAccount.DoesNotExist:
         return
 
-    logger.log_event(op, "user logged out, pausing periodic tasks...")
-    profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account.id, pause=True)
-    profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account.id, pause=True)
-    logger.log_event(op, "periodic tasks paused")
+    if not account.is_analyses_paused:
+        logger.log_event(op, "user logged out, pausing periodic tasks...")
+        profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account.id, pause=True)
+        profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account.id, pause=True)
+        account.is_analyses_paused = True
+        account.save()
+        logger.log_event(op, "periodic tasks paused")
