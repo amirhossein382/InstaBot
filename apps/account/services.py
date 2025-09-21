@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model, SESSION_KEY
 from instagrapi import Client
 
 from apps.proxy.services import ProxyService
-from apps.core.utils import Logger
+from apps.core.utils import Logger, decrypt_client_settings
 from .models import InstagramAccount
 from .exceptions import (
     UserUnActiveException, BadPassword, ProxyError,
@@ -40,7 +40,7 @@ class AccountConfig:
             raise ProxyError(str(err))
 
         client = self.get_client()
-        client.set_settings(json.loads(account.client_settings))
+        client.set_settings(decrypt_client_settings(account.client_settings))
         client.set_proxy(proxy)
         return client
 
@@ -71,7 +71,7 @@ class AccountService:
             if data.get(SESSION_KEY) == str(user.id):
                 session.delete()
 
-    def login_by_user_pass(self, username, password, device, proxy:str, code=None):
+    def login_by_user_pass(self, username, password, device, proxy: str, code=None):
         op = "login_by_user_pass"
         client = self.config.get_client()
         client.set_proxy(proxy)
@@ -89,7 +89,7 @@ class AccountService:
                 for _ in range(max_retries):
                     retries += 1
                     try:
-                        client.set_settings(json.loads(account.client_settings))
+                        client.set_settings(decrypt_client_settings(account.client_settings))
                         client.get_timeline_feed()
                         logger.log_event(op, log_data="User instagram session is valid.")
                     except (ProxyError, HTTPError, GenericRequestError, ClientConnectionError) as err:
@@ -102,7 +102,7 @@ class AccountService:
                     except Exception as err:
                         logger.log_event(op, log_data=f"User instagram session is not valid --> {err}", level="ERROR")
                         client.set_settings({})  # remove invalid settings
-                        settings = json.loads(account.client_settings)
+                        settings = decrypt_client_settings(account.client_settings)
                         client.set_device(device=settings["device_settings"])
                         client.set_user_agent(settings["user_agent"])
                         client.set_uuids(settings["uuids"])

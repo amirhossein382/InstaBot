@@ -14,7 +14,11 @@ class ProfileConfig:
     update_follow_task = "analyze_follow_data_user_{account_id}"
     growth_data_task = "analyze_account_growth_logs_{account_id}"
 
-    def create_analyze_growth_logs_periodic_task(self, account_id:int):
+    @staticmethod
+    def extract_account_id(task_name: str) -> int | None:
+        return int(task_name.split("_")[-1])
+
+    def create_analyze_growth_logs_periodic_task(self, account_id: int):
         schedule, created = IntervalSchedule.objects.get_or_create(
             every=1,
             period=IntervalSchedule.DAYS,
@@ -43,7 +47,7 @@ class ProfileConfig:
                 task.enabled = True
             task.save()
 
-    def create_analyze_update_follow_data_periodic_task(self, account_id:int):
+    def create_analyze_update_follow_data_periodic_task(self, account_id: int):
         schedule, created = IntervalSchedule.objects.get_or_create(
             every=10,
             period=IntervalSchedule.MINUTES,
@@ -59,7 +63,7 @@ class ProfileConfig:
                 enabled=True,
             )
 
-    def pause_or_resume_analyze_update_follow_data_periodic_task(self, account_id:int, pause: bool):
+    def pause_or_resume_analyze_update_follow_data_periodic_task(self, account_id: int, pause: bool):
         try:
             task = PeriodicTask.objects.get(name=self.update_follow_task.format(account_id=account_id))
         except PeriodicTask.DoesNotExist:
@@ -71,7 +75,7 @@ class ProfileConfig:
                 task.enabled = True
             task.save()
 
-    def reschedule_analyze_update_follow_data_periodic_task(self, account_id:int):
+    def reschedule_analyze_update_follow_data_periodic_task(self, account_id: int):
         try:
             task = PeriodicTask.objects.get(name=self.update_follow_task.format(account_id=account_id))
         except PeriodicTask.DoesNotExist:

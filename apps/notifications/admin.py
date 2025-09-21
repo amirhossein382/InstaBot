@@ -1,8 +1,11 @@
 from django.contrib import admin
 
+from apps.core.paginator import CustomModelAdminPaginator
 from .models import Notification
 
 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
-    list_display = ("title","type", "is_read")
+    paginator = CustomModelAdminPaginator
+    readonly_fields = ("account",)
+    list_display = ("account", "title", "type", "is_read")

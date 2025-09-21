@@ -3,21 +3,25 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 
-from .forms import CustomUserChangeForm, CustomUserCreationForm
+from apps.profiles.admin import ProfileAdmin
+from apps.core.paginator import CustomModelAdminPaginator
+from .forms import CustomUserChangeForm, CustomAdminUserCreationForm
 from .models import InstagramAccount, SuperUser, AdminUser
 
 User = get_user_model()
 
 
+@admin.register(User)
 class CustomUserAdmin(UserAdmin):
     model = User
+    paginator = CustomModelAdminPaginator
     form = CustomUserChangeForm
-    add_form = CustomUserCreationForm
+    add_form = CustomAdminUserCreationForm
     list_display = ("username", "email", "is_superuser")
 
     fieldsets = (
         (None, {"fields": ("username", "password")}),
-        (_("Personal info"), {"fields": ("first_name", "last_name", "email")}),
+        (_("Personal info"), {"fields": ("email",)}),
         (
             _("Permissions"),
             {
@@ -32,24 +36,31 @@ class CustomUserAdmin(UserAdmin):
         ),
         (_("Important dates"), {"fields": ("last_login", "date_joined")}),
     )
-    add_fieldsets = (
-        (
-            None,
-            {
-                "classes": ("wide",),
-                "fields": ("username", "usable_password", "password1", "password2"),
-            },
-        ),
-    )
+    add_fieldsets = UserAdmin.add_fieldsets + ((None, {"fields": ["email"]}),)
 
 
-admin.site.register(User, CustomUserAdmin)
+@admin.register(AdminUser)
+class AdminUserAdmin(CustomUserAdmin):
+    list_display = ("username", "email", "is_active")
+    list_filter = ("is_active",)
+
+
+@admin.register(SuperUser)
+class SuperUserAdmin(CustomUserAdmin):
+    list_display = ("username", "email", "is_active")
+    list_filter = ("is_active",)
 
 
 @admin.register(InstagramAccount)
 class InstagramAccountAdmin(admin.ModelAdmin):
+    paginator = CustomModelAdminPaginator
+    show_full_result_count = True
     search_fields = ("username",)
-    list_display = ("username", "client_pk")
+    exclude = ("client_settings",)
+    list_display = ("username", "is_initialized", "is_analyses_paused")
+    list_filter = ("is_initialized", "is_analyses_paused")
+    readonly_fields = ("user","client_pk")
+    inlines = (ProfileAdmin,)
 
     def username(self, obj):
         return obj.user.username
@@ -57,23 +68,3 @@ class InstagramAccountAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         default_qs = super().get_queryset(request)
         return default_qs.select_related("user")
-
-
-@admin.register(AdminUser)
-class AdminUserAdmin(admin.ModelAdmin):
-    list_display = ("username", "email", "is_active")
-    list_filter = ("is_active",)
-    search_fields = ("email",)
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).filter(is_staff=True)
-
-
-@admin.register(SuperUser)
-class SuperUserAdmin(admin.ModelAdmin):
-    list_display = ("username", "email", "is_active")
-    list_filter = ("is_active",)
-    search_fields = ("email",)
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).filter(is_superuser=True)

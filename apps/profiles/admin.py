@@ -1,30 +1,25 @@
 from django.contrib import admin
+from django.utils.html import format_html
 
-from .models import Profile, Follower, Following, FollowerChange, AccountGrowthLog
-
-
-@admin.register(Profile)
-class ProfileAdmin(admin.ModelAdmin):
-    list_display = ("username", "full_name", "follower_count", "following_count")
-    list_filter = ("is_private", "is_business")
-    search_fields = ("username", "user_pk")
+from .models import Profile
 
 
-@admin.register(Follower)
-class FollowerAdmin(admin.ModelAdmin):
-    pass
+class ProfileAdmin(admin.TabularInline):
+    model = Profile
+    extra = 0
+    fields = ("username", "full_name", "profile_pic", "external_url",
+              "follower_count", "following_count", "media_count",
+              "is_private", "is_verified", "is_business")
+    readonly_fields = ("profile_pic",)
 
+    @admin.display(description="Profile Pic")
+    def profile_pic(self, obj):
+        if obj.profile_pic_url:
+            return format_html(
+                '<a href="{}" target="_blank">View Pic</a>',
+                obj.profile_pic_url
+            )
+        return "-"
 
-@admin.register(Following)
-class FollowingAdmin(admin.ModelAdmin):
-    pass
-
-
-@admin.register(FollowerChange)
-class FollowerChangeAdmin(admin.ModelAdmin):
-    pass
-
-
-@admin.register(AccountGrowthLog)
-class AccountGrowthLogAdmin(admin.ModelAdmin):
-    pass
+    def has_change_permission(self, request, obj = ...):
+        return False

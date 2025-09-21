@@ -199,3 +199,6 @@ LOGGING = {
 
 # FIREBASE
 FIREBASE_CRED_PATH = os.path.join(BASE_DIR, "firebase_credentials.json")
+
+# Encryption
+CLIENT_SETTINGS_KEY = env.str("DJANGO_CLIENT_SETTINGS_KEY")

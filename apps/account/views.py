@@ -12,6 +12,7 @@ from apps.core.utils import Logger
 from apps.profiles.signals import profile_initialized
 from apps.profiles.services import ProfileService
 from apps.proxy.services import ProxyService
+from apps.core.utils import encrypt_client_settings
 from .models import InstagramAccount
 from .serializers import LoginSerializer
 from .services import AccountService
@@ -106,10 +107,10 @@ class LoginView(APIView):
                     account, account_created = InstagramAccount.objects.update_or_create(
                         user=user,
                         defaults={
-                            "client_settings": json.dumps(client.get_settings()),
+                            "client_settings": encrypt_client_settings(client.get_settings()),
                         },
                         create_defaults={
-                            "client_settings": json.dumps(client.get_settings()),
+                            "client_settings": encrypt_client_settings(client.get_settings()),
                             "client_pk": client.user_id
                         }
                     )
@@ -166,6 +167,8 @@ class AccountInitialView(APIView):
                 followings = profile_svc.fetch_followings(account, client)
                 logger.log_event(self.__class__.__name__, log_data="fetching analyses..")
                 profile_svc.analyze_follower_changes(account=account, followers=followers, followings=followings)
+                account.is_initialized = True
+                account.save()
                 transaction.on_commit(lambda: profile_initialized.send(
                     sender=self.__class__.__name__, account_id=account.id
                 ))

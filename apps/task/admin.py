@@ -1,10 +1,12 @@
 from django.contrib import admin
 
+from apps.core.paginator import CustomModelAdminPaginator
 from .models import MediaTask
 
 
 @admin.register(MediaTask)
 class MediaTaskAdmin(admin.ModelAdmin):
+    paginator = CustomModelAdminPaginator
     list_display = ("get_owner", "name", "state", "task_type")
     list_filter = ("state", "task_type")
 
