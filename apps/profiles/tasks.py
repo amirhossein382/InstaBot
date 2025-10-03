@@ -98,7 +98,7 @@ def analyze_and_update_follow_data(self, account_id):
             level="ERROR"
         )
         _pause_account_tasks(account)
-        profile_svc.account_svc.logout_django_by_user(account.user)
+        profile_svc.account_svc.force_logout(account.user)
         notifications_tasks.create_notification(
             account_id=account_id, profile=None, title="Authentication",
             message="Your account logged out. please login again!",
@@ -201,13 +201,6 @@ def analyze_and_update_follow_data(self, account_id):
 
         mutual_set = new_follower_pks.intersection(new_following_pks)
         not_back_set = new_following_pks - new_follower_pks
-
-        logger.log_event(op, f"new followers --> {new_followers_set}")
-        logger.log_event(op, f"un followers --> {unfollowers_set}")
-        logger.log_event(op, f"new followings --> {new_followings_set}")
-        logger.log_event(op, f"un followings --> {unfollowings_set}")
-        logger.log_event(op, f"mutual followings --> {mutual_set}")
-        logger.log_event(op, f"notback followings --> {not_back_set}")
 
         changes = []
 

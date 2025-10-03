@@ -1,5 +1,4 @@
 from rest_framework import views
-from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -11,8 +10,7 @@ from .serializers import MediaTaskSerializer
 from ..account.exceptions import base_response_with_error
 
 
-class MediaTaskListCreateView(views.APIView):
-    permission_classes = (permissions.IsAuthenticated,)
+class MediaTaskListCreateAPIView(views.APIView):
     serializer_class = MediaTaskSerializer
 
     def get(self, request, *args, **kwargs):
@@ -46,7 +44,7 @@ class MediaTaskListCreateView(views.APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class MediaTaskDetailView(views.APIView):
+class MediaTaskDetailAPIView(views.APIView):
     serializer_class = MediaTaskSerializer
 
     def get(self, request, *args, **kwargs):

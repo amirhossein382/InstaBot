@@ -1,5 +1,5 @@
 from rest_framework.views import APIView
-from rest_framework import permissions, status
+from rest_framework import status
 from rest_framework.response import Response
 
 from apps.account.models import InstagramAccount
@@ -10,7 +10,6 @@ from ..account.exceptions import base_response_with_error
 
 
 class NotificationListAPIView(APIView):
-    permission_classes = (permissions.IsAuthenticated,)
     serializer_class = NotificationSerializer
     pagination_class = NotificationPagination
 

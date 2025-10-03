@@ -1,8 +1,8 @@
 from django.urls import path
 
-from .views import MediaTaskListCreateView, MediaTaskDetailView
+from .views import MediaTaskListCreateAPIView, MediaTaskDetailAPIView
 
 urlpatterns = [
-    path("", MediaTaskListCreateView.as_view(), name="media_tasks"),
-    path("<int:pk>/", MediaTaskDetailView.as_view(), name="media_task_detail"),
+    path("", MediaTaskListCreateAPIView.as_view(), name="media_tasks"),
+    path("<int:pk>/", MediaTaskDetailAPIView.as_view(), name="media_task_detail"),
 ]

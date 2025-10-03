@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 
 from django.contrib import staticfiles
+from django.utils.timezone import timedelta
 from environs import Env
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -42,7 +43,12 @@ DJANGO_APPS = [
     'django.contrib.staticfiles',
 ]
 
-THIRD_PARTY_APPS = ['rest_framework', 'django_celery_beat', ]
+THIRD_PARTY_APPS = [
+    'rest_framework',
+    'django_celery_beat',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
+]
 
 CUSTOM_APPS = [
     'apps.account.apps.AccountConfig',
@@ -170,8 +176,18 @@ AUTH_USER_MODEL = "account.CustomUser"
 # REST FRAMEWORK
 REST_FRAMEWORK = {
     "DEFAULT_VERSIONING_CLASS": "apps.core.versioning.CustomUrlPathVersioning",
-    "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework.authentication.SessionAuthentication",),
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
 # LOGGING Settings

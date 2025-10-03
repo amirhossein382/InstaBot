@@ -1,6 +1,5 @@
 from rest_framework import views, status
 from rest_framework.response import Response
-from rest_framework import permissions
 
 from apps.account.models import InstagramAccount
 from apps.account.exceptions import base_response_with_error
@@ -20,7 +19,6 @@ profile_svc = ProfileService()
 
 
 class ProfileView(views.APIView):
-    permission_classes = (permissions.IsAuthenticated,)
     serializer_class = ProfileSerializer
 
     def get_queryset(self):
@@ -37,7 +35,6 @@ class ProfileView(views.APIView):
 
 
 class FollowersView(views.APIView):
-    permission_classes = (permissions.IsAuthenticated,)
     serializer_class = FollowerSerializer
 
     def get_queryset(self):
@@ -56,7 +53,6 @@ class FollowersView(views.APIView):
 
 class FollowingsView(views.APIView):
     serializer_class = FollowingSerializer
-    permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
         account = InstagramAccount.objects.get(user=self.request.user)
@@ -73,7 +69,6 @@ class FollowingsView(views.APIView):
 
 
 class FollowerChangesView(views.APIView):
-    permission_classes = (permissions.IsAuthenticated,)
     serializer_class = FollowerChangeSerializer
 
     def get_queryset(self, **kwargs):
@@ -103,7 +98,6 @@ class FollowerChangesView(views.APIView):
 
 
 class AccountGrowthLogView(views.APIView):
-    permission_classes = (permissions.IsAuthenticated,)
     serializer_class = AccountGrowthLogSerializer
 
     def get_queryset(self):
@@ -121,7 +115,6 @@ class AccountGrowthLogView(views.APIView):
 
 
 class UserUnfollowAPIView(views.APIView):
-    permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self, user_pk):
         account = InstagramAccount.objects.get(user=self.request.user)

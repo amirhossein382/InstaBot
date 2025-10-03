@@ -1,6 +1,7 @@
 import json
 
-from django.contrib.auth import get_user_model, login, logout
+from django.contrib.auth.signals import user_logged_in, user_logged_out
+from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from django.db import transaction
 from rest_framework.response import Response
@@ -29,7 +30,7 @@ User = get_user_model()
 logger = Logger()
 
 
-class LoginView(APIView):
+class LoginAPIView(APIView):
     serializer_class = LoginSerializer
     permission_classes = (permissions.AllowAny,)
 
@@ -122,8 +123,9 @@ class LoginView(APIView):
                     account.save()
 
                 proxy_svc.set_account_proxy(temp_id=serializer.validated_data["temp_id"], account=account)
-                login(request=request, user=user)
-                return Response(data="Logged in success")
+                tokens = account_svc.get_tokens_for_user(user)
+                user_logged_in.send(sender=user.__class__, request=request, user=user)
+                return Response(data=tokens, status=status.HTTP_201_CREATED)
 
         else:
             if err is None:
@@ -136,17 +138,22 @@ class LoginView(APIView):
                 )
 
 
-class LogoutView(APIView):
-    permission_classes = (permissions.IsAuthenticated,)
+class LogoutAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request, *args, **kwargs):
-        logger.log_event(self.__class__.__name__, log_data="user logged out")
-        logout(self.request)
-        return Response({"detail": "Logged out successfully."}, status=status.HTTP_200_OK)
+    def get(self, request):
+        try:
+            refresh_token = request.data["refresh"]
+            account_svc.block_token(refresh_token)
+        except KeyError:
+            return Response({"detail": "Refresh token required."}, status=status.HTTP_400_BAD_REQUEST)
+        except TokenError:
+            return Response({"detail": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+        user_logged_out.send(sender=user.__class__, request=request, user=request.user)
+        return Response({"detail": "Logout successful."}, status=status.HTTP_200_OK)
 
 
-class AccountInitialView(APIView):
-    permission_classes = (permissions.IsAuthenticated,)
+class AccountInitialAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         user = request.user
