@@ -42,9 +42,6 @@ class FollowerChange(BaseInstagramUser):
     user_pk = models.BigIntegerField(db_index=True)
     change_type = models.CharField(max_length=20, choices=FollowerChangeStatusEnum.CHOICES)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         unique_together = (["account", "user_pk", "change_type"])
         ordering = ['-created_at']

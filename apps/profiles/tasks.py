@@ -157,17 +157,17 @@ def analyze_and_update_follow_data(self, account_id):
             notif_type=NotificationsTypeEnum.ERROR,
             # push=True
         )
-    # except Exception as err:
-    #     logger.log_event(
-    #         op, f"[{account_id}] Unhandled exception during analyses: {str(err)}", level="WARNING"
-    #     )
-    #     _pause_account_tasks(account)
-    #     notifications_tasks.create_notification(
-    #         account_id=account_id, profile=None, title="Unknown Error",
-    #         message="Analysed failed for unknown error. try to open app or login again.",
-    #         notif_type=NotificationsTypeEnum.ERROR,
-    #         # push=True
-    #     )
+    except Exception as err:
+        logger.log_event(
+            op, f"[{account_id}] Unhandled exception during analyses: {str(err)}", level="WARNING"
+        )
+        _pause_account_tasks(account)
+        notifications_tasks.create_notification(
+            account_id=account_id, profile=None, title="Unknown Error",
+            message="Analysed failed for unknown error. try to open app or login again.",
+            notif_type=NotificationsTypeEnum.ERROR,
+            # push=True
+        )
 
     else:
         logger.log_event(op, f"analyze instagram new data for user {account.user.id}")
