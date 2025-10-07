@@ -169,11 +169,11 @@ class AccountInitialAPIView(APIView):
                 logger.log_event(self.__class__.__name__, log_data="fetching profile..")
                 profile_svc.fetch_profile_info(account, client)
                 logger.log_event(self.__class__.__name__, log_data="fetching followers..")
-                followers = profile_svc.fetch_followers(account, client)
+                profile_svc.fetch_followers(account, client)
                 logger.log_event(self.__class__.__name__, log_data="fetching followings..")
-                followings = profile_svc.fetch_followings(account, client)
+                profile_svc.fetch_followings(account, client)
                 logger.log_event(self.__class__.__name__, log_data="fetching analyses..")
-                profile_svc.analyze_follower_changes(account=account, followers=followers, followings=followings)
+                profile_svc.analyze_follower_changes(account=account)
                 account.is_initialized = True
                 account.save()
                 transaction.on_commit(lambda: profile_initialized.send(
