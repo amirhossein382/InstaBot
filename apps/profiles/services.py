@@ -97,12 +97,12 @@ class ProfileService:
     batch_size = 1000
 
     @staticmethod
-    def _clean_follower_object(follower):
+    def _clean_user_object(user):
         return {
-            "user_pk": int(follower.pk),
-            "username": follower.username,
-            "full_name": follower.full_name,
-            "profile_pic_url": str(follower.profile_pic_url),
+            "user_pk": int(user.pk),
+            "username": user.username,
+            "full_name": user.full_name,
+            "profile_pic_url": str(user.profile_pic_url),
         }
 
     @staticmethod
@@ -114,26 +114,42 @@ class ProfileService:
         return data
 
     def load_followers(self, account, client):
-        chunk = []
-        followers = client.user_followers(str(account.client_pk), use_cache=False).values()
-        for follower in followers:
-            chunk.append(self._clean_follower_object(follower))
-            if len(chunk) >= batch_size:
-                yield chunk
-                chunk = []
-        if chunk:
-            yield chunk
+        max_id = ""
+        max_amount = 200
+        buffer = []
+        while True:
+            users, max_id = client.user_followers_v1_chunk(
+                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
+            )
+            for user in users:
+                buffer.append(self._clean_user_object(user))
+                if len(buffer) >= batch_size:
+                    yield buffer
+                    buffer.clear()
+            if not max_id:
+                break
+
+        if buffer:
+            yield buffer
 
     def load_followings(self, account, client):
-        chunk = []
-        followings = client.user_following(str(account.client_pk), use_cache=False).values()
-        for following in followings:
-            chunk.append(self._clean_follower_object(following))
-            if len(chunk) >= batch_size:
-                yield chunk
-                chunk = []
-        if chunk:
-            yield chunk
+        max_id = ""
+        max_amount = 200
+        buffer = []
+        while True:
+            users, max_id = client.user_following_v1_chunk(
+                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
+            )
+            for user in users:
+                buffer.append(self._clean_user_object(user))
+                if len(buffer) >= batch_size:
+                    yield buffer
+                    buffer.clear()
+            if not max_id:
+                break
+
+        if buffer:
+            yield buffer
 
     def fetch_profile_info(self, account, client) -> None:
         profile_info = self.load_profile_info(account, client)
