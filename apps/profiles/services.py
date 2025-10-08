@@ -170,10 +170,10 @@ class ProfileService:
     def analyze_follower_changes(self, account) -> None:
         followers = Follower.objects.filter(account=account).values(
             "user_pk", "username", "full_name", "profile_pic_url"
-        )
+        ).iterator()
         followings = Following.objects.filter(account=account).values(
             "user_pk", "username", "full_name", "profile_pic_url"
-        )
+        ).iterator()
         follower_map: dict = {f["user_pk"]: f for f in followers}
         following_map: dict = {f["user_pk"]: f for f in followings}
 
