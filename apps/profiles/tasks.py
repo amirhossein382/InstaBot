@@ -5,7 +5,7 @@ from celery import shared_task, Task, exceptions as celery_exceptions
 
 from apps.account.exceptions import (
     PleaseWaitFewMinutes, LoginRequired, ChallengeRequired, FeedbackRequired,
-    ProxyError,ClientUnauthorizedError
+    ProxyError, ClientUnauthorizedError
 )
 from apps.account.models import InstagramAccount
 from apps.notifications.services import NotificationService
@@ -76,8 +76,15 @@ def analyze_and_update_follow_data(self, account_id):
         client = profile_svc.account_svc.config.get_account_client(account)
         logger.log_event(op, f"getting new data from instagram for user {account.user.id}")
         new_profile_info = profile_svc.load_profile_info(account, client)
-        new_followers = profile_svc.load_followers(account, client)
-        new_followings = profile_svc.load_followings(account, client)
+        new_followers_dict = {}
+        for chunk in profile_svc.load_followers(account, client):
+            for follower in chunk:
+                new_followers_dict[follower["user_pk"]] = follower
+
+        new_followings_dict = {}
+        for chunk in profile_svc.load_followings(account, client):
+            for following in chunk:
+                new_followings_dict[following["user_pk"]] = following
 
     except PleaseWaitFewMinutes as err:
         logger.log_event(
@@ -148,8 +155,8 @@ def analyze_and_update_follow_data(self, account_id):
             )
     except ClientUnauthorizedError as err:
         logger.log_event(
-                op, f"[{account_id}] Authorization error during analyses: {str(err)}", level="ERROR"
-            )
+            op, f"[{account_id}] Authorization error during analyses: {str(err)}", level="ERROR"
+        )
         _pause_account_tasks(account)
         notifications_tasks.create_notification(
             account_id=account_id, profile=None, title="Authorization Error",
@@ -171,18 +178,19 @@ def analyze_and_update_follow_data(self, account_id):
 
     else:
         logger.log_event(op, f"analyze instagram new data for user {account.user.id}")
-        new_followers_dict = {item["user_pk"]: item for item in new_followers}
-        new_followings_dict = {item["user_pk"]: item for item in new_followings}
 
         old_profile_info = Profile.objects.get(account=account)
-        old_followers = Follower.objects.filter(account=account)
-        old_followings = Following.objects.filter(account=account)
-
-        old_followers_dict = {f.user_pk: f for f in old_followers}
-        old_followings_dict = {f.user_pk: f for f in old_followings}
+        old_followers_dict = {
+            f.user_pk: f for f in Follower.objects.filter(account=account).iterator(chunk_size=1000)
+        }
+        # There is no need to full data of Following yet!
+        # old_followings_dict = {
+        #     f.user_pk: f for f in
+        #     Following.objects.filter(account=account).values_list("user_pk", flat=True)
+        # }
 
         old_follower_pks = set(old_followers_dict.keys())
-        old_following_pks = set(old_followings_dict.keys())
+        old_following_pks = set(Following.objects.filter(account=account).values_list("user_pk", flat=True))
         new_follower_pks = set(new_followers_dict.keys())
         new_following_pks = set(new_followings_dict.keys())
 
