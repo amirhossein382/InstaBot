@@ -1,6 +1,6 @@
 .venv
-.idea/
+.idea
 db.sqlite3
-__pycache__/
+__pycache__
 .env
 firebase_credentials.json

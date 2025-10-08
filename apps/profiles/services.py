@@ -6,8 +6,8 @@ from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from apps.account.services import AccountService
 from apps.enums import FollowerChangeStatusEnum
-from .serializers import FollowingSerializer, FollowerSerializer, ProfileSerializer
-from .models import FollowerChange
+from .serializers import ProfileSerializer
+from .models import FollowerChange, Follower, Following
 
 
 class ProfileConfig:
@@ -97,6 +97,15 @@ class ProfileService:
     batch_size = 1000
 
     @staticmethod
+    def _clean_user_object(user):
+        return {
+            "user_pk": int(user.pk),
+            "username": user.username,
+            "full_name": user.full_name,
+            "profile_pic_url": str(user.profile_pic_url),
+        }
+
+    @staticmethod
     def load_profile_info(account, client):
         data = client.user_info(str(account.client_pk), use_cache=False).dict()
         data["account"] = account.pk
@@ -104,53 +113,67 @@ class ProfileService:
         data["profile_pic_url"] = str(data["profile_pic_url"])
         return data
 
-    @staticmethod
-    def load_followers(account, client) -> list[dict]:
-        followers = client.user_followers(str(account.client_pk), use_cache=False).values()
-        data = [{
-            "account": account.pk,
-            "user_pk": int(follower.pk),
-            "username": follower.username,
-            "full_name": follower.full_name,
-            "profile_pic_url": str(follower.profile_pic_url),
-        } for follower in followers
-        ]
-        return data
+    def load_followers(self, account, client):
+        max_id = ""
+        max_amount = 200
+        buffer = []
+        while True:
+            users, max_id = client.user_followers_v1_chunk(
+                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
+            )
+            for user in users:
+                buffer.append(self._clean_user_object(user))
+                if len(buffer) >= batch_size:
+                    yield buffer
+                    buffer.clear()
+            if not max_id:
+                break
 
-    @staticmethod
-    def load_followings(account, client) -> list[dict]:
-        followings = client.user_following(str(account.client_pk), use_cache=False).values()
-        data = [{
-            "account": account.pk,
-            "user_pk": int(follower.pk),
-            "username": follower.username,
-            "full_name": follower.full_name,
-            "profile_pic_url": str(follower.profile_pic_url),
-        } for follower in followings
-        ]
-        return data
+        if buffer:
+            yield buffer
 
-    def fetch_profile_info(self, account, client):
+    def load_followings(self, account, client):
+        max_id = ""
+        max_amount = 200
+        buffer = []
+        while True:
+            users, max_id = client.user_following_v1_chunk(
+                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
+            )
+            for user in users:
+                buffer.append(self._clean_user_object(user))
+                if len(buffer) >= batch_size:
+                    yield buffer
+                    buffer.clear()
+            if not max_id:
+                break
+
+        if buffer:
+            yield buffer
+
+    def fetch_profile_info(self, account, client) -> None:
         profile_info = self.load_profile_info(account, client)
         serializer = ProfileSerializer(data=profile_info)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-    def fetch_followers(self, account, client) -> list[dict]:
-        data = self.load_followers(account, client)
-        serializer = FollowerSerializer(data=data, many=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return data
+    def fetch_followers(self, account, client) -> None:
+        for chunk in self.load_followers(account, client):
+            objs = [Follower(account=account, **item) for item in chunk]
+            Follower.objects.bulk_create(objs, batch_size=1000)
 
-    def fetch_followings(self, account, client) -> list[dict]:
-        data = self.load_followings(account, client)
-        serializer = FollowingSerializer(data=data, many=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return data
+    def fetch_followings(self, account, client) -> None:
+        for chunk in self.load_followings(account, client):
+            objs = [Following(account=account, **item) for item in chunk]
+            Following.objects.bulk_create(objs, batch_size=1000)
 
-    def analyze_follower_changes(self, account, followers: list[dict], followings: list[dict]) -> None:
+    def analyze_follower_changes(self, account) -> None:
+        followers = Follower.objects.filter(account=account).values(
+            "user_pk", "username", "full_name", "profile_pic_url"
+        ).iterator()
+        followings = Following.objects.filter(account=account).values(
+            "user_pk", "username", "full_name", "profile_pic_url"
+        ).iterator()
         follower_map: dict = {f["user_pk"]: f for f in followers}
         following_map: dict = {f["user_pk"]: f for f in followings}
 
