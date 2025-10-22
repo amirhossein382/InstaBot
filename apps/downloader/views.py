@@ -1,0 +1,34 @@
+from rest_framework.views import APIView
+from rest_framework import status as rest_status
+from rest_framework.response import Response
+
+from apps.core.utils import Logger
+from apps.account.exceptions import base_response_with_error, ProxyError
+from .services import DownloaderService
+from .exceptions import UnknownMediaUrlType, MediaNotFound
+
+_logger = Logger()
+_downloader_svc = DownloaderService()
+
+
+class DownloaderUrlResolverAPIView(APIView):
+    def get(self, request, url):
+        account = self.request.user.instagram_account
+        try:
+            resolved_url: dict = _downloader_svc.resolve_media_url(account, url)
+        except UnknownMediaUrlType as err:
+            return base_response_with_error(msg=str(err), _status=rest_status.HTTP_400_BAD_REQUEST)
+        except ProxyError as err:
+            return base_response_with_error(msg=str(err), _status=rest_status.HTTP_305_USE_PROXY)
+        except MediaNotFound as err:
+            return base_response_with_error(msg=str(err), _status=rest_status.HTTP_404_NOT_FOUND)
+        except Exception as err:
+            err_class = err.__class__.__name__
+            _logger.log_event(
+                self.__class__.__name__,
+                log_data=f"{err_class} exception while media resolving! :{str(err)}"
+            )
+            return base_response_with_error(msg="Failed to resolve media url!",
+                                            _status=rest_status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response(data=resolved_url, status=rest_status.HTTP_200_OK)
