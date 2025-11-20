@@ -1,21 +1,15 @@
-import uuid
-
 from django.db import models
 
-from apps.account.models import InstagramAccount
 from apps.core.models import BaseTimeStampedModel
 
 
-class Proxy(BaseTimeStampedModel):
-    account = models.ForeignKey(
-        InstagramAccount, on_delete=models.CASCADE,
-        related_name="proxies", null=True, blank=True
-    )
-    temp_id = models.UUIDField(default=uuid.uuid4, editable=False)
+class InternalProxy(BaseTimeStampedModel):
     proxy = models.CharField(max_length=300)
     is_valid = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    capacity = models.PositiveIntegerField(default=5)
+    used_slots = models.PositiveIntegerField(default=0)
+    last_checked = models.DateTimeField(auto_now=True)
 
-    class Meta:
-        unique_together = (
-            ('account', 'proxy'), ('temp_id', 'proxy'),
-        )
+    def has_capacity(self):
+        return self.is_valid and self.used_slots < self.capacity

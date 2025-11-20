@@ -88,5 +88,9 @@ class InstagramAccount(BaseTimeStampedModel):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="instagram_account")
     client_pk = models.BigIntegerField(unique=True)
     client_settings = models.TextField()
+    internal_proxy = models.ForeignKey(
+        "proxy.InternalProxy", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="instagram_accounts",
+    )
     is_initialized = models.BooleanField(default=False)
-    is_analyses_paused = models.BooleanField(default=False)
+    is_analyses_paused = models.BooleanField(default=False, editable=False)

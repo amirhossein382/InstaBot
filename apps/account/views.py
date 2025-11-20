@@ -39,7 +39,7 @@ class LoginAPIView(APIView):
         print(verification_code)
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        proxy, err = proxy_svc.get_user_valid_proxy(temp_id=serializer.validated_data["temp_id"])
+        proxy, err = proxy_svc.get_valid_proxy()
 
         if proxy:
             try:
@@ -78,8 +78,9 @@ class LoginAPIView(APIView):
                     _status=status.HTTP_400_BAD_REQUEST
                 )
             except Exception as err:
+                err_cls = err.__class__.__name__
                 logger.log_event(
-                    self.__class__.__name__, log_data=f"Login failed because unknown error ---> {err}",
+                    self.__class__.__name__, log_data=f"Login failed because {err_cls} error ---> {err}",
                     level="WARNING"
                 )
                 if "EOF when reading a line" in str(err):
@@ -94,7 +95,7 @@ class LoginAPIView(APIView):
                     )
 
                 return base_response_with_error(
-                    msg=" login failed because unknown error!",
+                    msg="Login failed because unknown error!",
                     _status=status.HTTP_400_BAD_REQUEST
                 )
             else:
@@ -109,10 +110,12 @@ class LoginAPIView(APIView):
                         user=user,
                         defaults={
                             "client_settings": encrypt_client_settings(client.get_settings()),
+                            "internal_proxy": proxy
                         },
                         create_defaults={
                             "client_settings": encrypt_client_settings(client.get_settings()),
-                            "client_pk": client.user_id
+                            "client_pk": client.user_id,
+                            "internal_proxy": proxy
                         }
                     )
                 if created:
@@ -122,7 +125,6 @@ class LoginAPIView(APIView):
                 if account_created:
                     account.save()
 
-                proxy_svc.set_account_proxy(temp_id=serializer.validated_data["temp_id"], account=account)
                 tokens = account_svc.get_tokens_for_user(user)
                 user_logged_in.send(sender=user.__class__, request=request, user=user)
                 return Response(data=tokens, status=status.HTTP_201_CREATED)
@@ -159,8 +161,7 @@ class AccountInitialAPIView(APIView):
         user = request.user
         account = InstagramAccount.objects.get(user=user)
         if account.is_initialized:
-            logger.log_event(self.__class__.__name__, log_data="account already initialized!.")
-            return Response(data="initialized successfully", status=status.HTTP_201_CREATED)
+            return Response(data="Account already initialized.", status=status.HTTP_200_OK)
 
         logger.log_event(self.__class__.__name__, log_data="initializing account...")
         try:
@@ -179,15 +180,19 @@ class AccountInitialAPIView(APIView):
                 transaction.on_commit(lambda: profile_initialized.send(
                     sender=self.__class__.__name__, account_id=account.id
                 ))
-        except ProxyError as err:
+        except(ProxyError, HTTPError, GenericRequestError, ClientConnectionError) as err:
+            error_cls = err.__class__.__name__
             logger.log_event(
-                self.__class__.__name__, f"Connection error on initializing: {str(err)}", level="ERROR"
+                self.__class__.__name__, f"Error {error_cls}: {str(err)}", level="ERROR"
             )
             return base_response_with_error(msg=f"Connection error: {str(err)}", _status=status.HTTP_305_USE_PROXY)
-        except Exception as e:
-            logger.log_event(self.__class__.__name__, log_data=f"account initial failed --> {str(e)}", level="ERROR")
-            return Response(data={"detail": f"Initialization failed: {str(e)}"},
-                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as err:
+            err_cls = err.__class__.__name__
+            logger.log_event(self.__class__.__name__, log_data=f"Error {err_cls}: {str(e)}", level="ERROR")
+            return base_response_with_error(
+                msg="Initialization failed for unknown error!",
+                _status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-        logger.log_event(self.__class__.__name__, log_data="account initial done")
+        logger.log_event(self.__class__.__name__, log_data="Account initial done.")
         return Response(data="initialized successfully", status=status.HTTP_201_CREATED)
