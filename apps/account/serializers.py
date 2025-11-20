@@ -13,7 +13,6 @@ class DeviceSettingsSerializer(serializers.Serializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    temp_id = serializers.UUIDField(required=True, allow_null=False)
     username = serializers.CharField(max_length=150, allow_null=False, allow_blank=False, required=True)
     password = serializers.CharField(allow_null=False, allow_blank=False, required=True, write_only=True)
     device_settings = DeviceSettingsSerializer(required=True)

@@ -36,13 +36,9 @@ class AccountConfig:
         return client
 
     def get_account_client(self, account: InstagramAccount):
-        proxy, err = proxy_svc.get_user_valid_proxy(account=account)
-        if not proxy:
-            raise ProxyError(str(err))
-
         client = self.get_client()
         client.set_settings(decrypt_client_settings(account.client_settings))
-        client.set_proxy(proxy)
+        client.set_proxy(account.internal_proxy.proxy)
         return client
 
     def create_device_settings(self, device: dict):

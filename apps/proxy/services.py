@@ -2,17 +2,14 @@ import re
 import time
 import requests
 
-from apps.core.utils import Logger
-from .models import Proxy
-
-logger = Logger
+from .models import InternalProxy
 
 
 class ProxyService:
     Op = "ProxyService"
 
     @staticmethod
-    def check_internet(retries=3) -> bool:
+    def check_internet_connection(retries=3) -> bool:
         sleep_time = 0.5
         for _ in range(retries):
             time.sleep(sleep_time)
@@ -47,19 +44,19 @@ class ProxyService:
         regex = r"^(http|https|socks5)://((\w+:\w+)@)?([0-9\.]+):(\d+)/?$"
         return re.match(regex, proxy) is not None
 
-    def get_user_valid_proxy(self, **kwargs) -> tuple:
-        proxies = Proxy.objects.filter(**kwargs, is_valid=True).order_by("created_at")
+    def get_valid_proxy(self, **kwargs) -> tuple:
+        proxies = InternalProxy.objects.filter(**kwargs, is_valid=True, is_active=True)
         err = None
         if proxies.exists():
             for proxy in proxies:
+                if not proxy.has_capacity():
+                    continue
+
                 proxy_str, err = self.ping_proxy(proxy.proxy)
                 if proxy_str:
                     return proxy_str, err
                 proxy.is_valid = False
+                proxy.is_active = False
                 proxy.save()
 
         return False, err
-
-    @staticmethod
-    def set_account_proxy(temp_id, account):
-        return Proxy.objects.filter(temp_id=temp_id).update(account=account)
