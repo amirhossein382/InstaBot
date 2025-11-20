@@ -109,7 +109,7 @@ def analyze_and_update_follow_data(self, account_id):
             level="ERROR"
         )
         _pause_account_tasks(account)
-        _profile_svc.account_svc.force_logout(account.user)
+        _profile_svc.account_svc.logout_django_by_user(account.user)
         notifications_tasks.create_notification(
             account_id=account_id, profile=None, title="Authentication",
             message="Your account logged out. please login again!",

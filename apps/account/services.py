@@ -1,10 +1,14 @@
 import json
 
+from django.utils import timezone
+from django.contrib.sessions.models import Session
+from django.contrib.auth import get_user_model, SESSION_KEY
+
 from instagrapi import Client
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+# from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 
 from apps.proxy.services import ProxyService
 from apps.core.utils import Logger, decrypt_client_settings
@@ -61,27 +65,35 @@ class AccountService:
     config = AccountConfig()
 
     @staticmethod
-    def force_logout(user):
-        tokens = OutstandingToken.objects.filter(user=user)
-        for token in tokens:
-            try:
-                BlacklistedToken.objects.get_or_create(token=token)
-            except Exception as err:
-                pass
+    def logout_django_by_user(user):
+        sessions = Session.objects.filter(expire_date__gte=timezone.now())
+        for session in sessions:
+            data = session.get_decoded()
+            if data.get(SESSION_KEY) == str(user.id):
+                session.delete()
 
-    @staticmethod
-    def get_tokens_for_user(user):
-        refresh = RefreshToken.for_user(user)
-
-        return {
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }
-
-    @staticmethod
-    def block_token(refresh_token):
-        token = RefreshToken(refresh_token)
-        token.blacklist()
+    # @staticmethod
+    # def force_logout(user):
+    #     tokens = OutstandingToken.objects.filter(user=user)
+    #     for token in tokens:
+    #         try:
+    #             BlacklistedToken.objects.get_or_create(token=token)
+    #         except Exception as err:
+    #             pass
+    #
+    # @staticmethod
+    # def get_tokens_for_user(user):
+    #     refresh = RefreshToken.for_user(user)
+    #
+    #     return {
+    #         'refresh': str(refresh),
+    #         'access': str(refresh.access_token),
+    #     }
+    #
+    # @staticmethod
+    # def block_token(refresh_token):
+    #     token = RefreshToken(refresh_token)
+    #     token.blacklist()
 
     def login_by_user_pass(self, username, password, device, proxy: str, code=None):
         op = "login_by_user_pass"
