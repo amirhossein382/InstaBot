@@ -21,7 +21,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path("api/<version>/accounts/", include("apps.account.urls"), name="accounts"),
     path("api/<version>/profiles/", include("apps.profiles.urls"), name="profiles"),
-    path("api/<version>/tasks/", include("apps.task.urls"), name="tasks"),
     path("api/<version>/notifications/", include("apps.notifications.urls"), name="notifications"),
     path("api/<version>/downloader/", include("apps.downloader.urls"), name="downloader"),
 ]

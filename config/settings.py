@@ -54,7 +54,6 @@ CUSTOM_APPS = [
     'apps.account.apps.AccountConfig',
     'apps.core.apps.CoreConfig',
     'apps.profiles.apps.ProfilesConfig',
-    'apps.task.apps.TaskConfig',
     'apps.notifications.apps.NotificationsConfig',
     'apps.proxy.apps.ProxyConfig',
     'apps.downloader.apps.DownloaderConfig',
