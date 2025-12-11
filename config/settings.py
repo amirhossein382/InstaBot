@@ -12,8 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 
-from django.contrib import staticfiles
-from django.utils.timezone import timedelta
+# from django.contrib import staticfiles
+# from django.utils.timezone import timedelta
 from environs import Env
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -219,3 +219,4 @@ FIREBASE_CRED_PATH = os.path.join(BASE_DIR, "firebase_credentials.json")
 
 # Encryption
 CLIENT_SETTINGS_KEY = env.str("DJANGO_CLIENT_SETTINGS_KEY")
+INSTAGRAM_CLIENT = "instagrapi"  # choices are instaloader/instagrapi

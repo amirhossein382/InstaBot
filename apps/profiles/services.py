@@ -123,7 +123,7 @@ class ProfileService:
             )
             for user in users:
                 buffer.append(self._clean_user_object(user))
-                if len(buffer) >= batch_size:
+                if len(buffer) >= self.batch_size:
                     yield buffer
                     buffer.clear()
             if not max_id:
@@ -142,7 +142,7 @@ class ProfileService:
             )
             for user in users:
                 buffer.append(self._clean_user_object(user))
-                if len(buffer) >= batch_size:
+                if len(buffer) >= self.batch_size:
                     yield buffer
                     buffer.clear()
             if not max_id:
