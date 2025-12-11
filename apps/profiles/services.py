@@ -6,8 +6,10 @@ from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from apps.account.services import AccountService
 from apps.enums import FollowerChangeStatusEnum
+from apps.core.utils.instagram_client import InstagramBaseClient
 from .serializers import ProfileSerializer
 from .models import FollowerChange, Follower, Following
+from ..core.utils.instagram_client.exceptions import exception_mapper
 
 
 class ProfileConfig:
@@ -97,75 +99,43 @@ class ProfileService:
     batch_size = 1000
 
     @staticmethod
-    def _clean_user_object(user):
-        return {
-            "user_pk": int(user.pk),
-            "username": user.username,
-            "full_name": user.full_name,
-            "profile_pic_url": str(user.profile_pic_url),
-        }
+    def load_profile_info(account, client: InstagramBaseClient):
+        try:
+            return client.load_profile(account=account)
+        except Exception as exc:
+            raise exception_mapper(exc)
 
     @staticmethod
-    def load_profile_info(account, client):
-        data = client.user_info(str(account.client_pk), use_cache=False).dict()
-        data["account"] = account.pk
-        data["user_pk"] = int(data["pk"])
-        data["profile_pic_url"] = str(data["profile_pic_url"])
-        return data
+    def load_followers(account, client: InstagramBaseClient):
+        try:
+            for users in client.load_followers_in_chunk(account=account):
+                yield users
+        except Exception as exc:
+            raise exception_mapper(exc)
 
-    def load_followers(self, account, client):
-        max_id = ""
-        max_amount = 200
-        buffer = []
-        while True:
-            users, max_id = client.user_followers_v1_chunk(
-                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
-            )
-            for user in users:
-                buffer.append(self._clean_user_object(user))
-                if len(buffer) >= self.batch_size:
-                    yield buffer
-                    buffer.clear()
-            if not max_id:
-                break
+    @staticmethod
+    def load_followings(account, client: InstagramBaseClient):
+        try:
+            for users in client.load_followings_in_chunk(account=account):
+                yield users
+        except Exception as exc:
+            raise exception_mapper(exc)
 
-        if buffer:
-            yield buffer
-
-    def load_followings(self, account, client):
-        max_id = ""
-        max_amount = 200
-        buffer = []
-        while True:
-            users, max_id = client.user_following_v1_chunk(
-                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
-            )
-            for user in users:
-                buffer.append(self._clean_user_object(user))
-                if len(buffer) >= self.batch_size:
-                    yield buffer
-                    buffer.clear()
-            if not max_id:
-                break
-
-        if buffer:
-            yield buffer
-
-    def fetch_profile_info(self, account, client) -> None:
+    def fetch_profile_info(self, account, client: InstagramBaseClient) -> None:
         profile_info = self.load_profile_info(account, client)
         serializer = ProfileSerializer(data=profile_info)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-    def fetch_followers(self, account, client) -> None:
+    def fetch_followers(self, account, client: InstagramBaseClient) -> None:
         for chunk in self.load_followers(account, client):
             objs = [Follower(account=account, **item) for item in chunk]
-            Follower.objects.bulk_create(objs, batch_size=1000)
+            Follower.objects.bulk_create(objs, batch_size=self.batch_size)
 
-    def fetch_followings(self, account, client) -> None:
+    def fetch_followings(self, account, client: InstagramBaseClient) -> None:
         for chunk in self.load_followings(account, client):
             objs = [Following(account=account, **item) for item in chunk]
-            Following.objects.bulk_create(objs, batch_size=1000)
+            Following.objects.bulk_create(objs, batch_size=self.batch_size)
 
     def analyze_follower_changes(self, account) -> None:
         followers = Follower.objects.filter(account=account).values(
@@ -210,7 +180,3 @@ class ProfileService:
             ))
 
         FollowerChange.objects.bulk_create(change_objects, batch_size=self.batch_size)
-
-    def unfollow_user(self, account, user_pk):
-        client = self.account_svc.config.get_account_client(account)
-        return client.user_unfollow(str(user_pk))

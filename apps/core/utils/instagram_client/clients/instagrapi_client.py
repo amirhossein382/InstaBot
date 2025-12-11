@@ -120,14 +120,13 @@ class InstagrapiClient(InstagramBaseClient):
     def logout(self, username: str, password: str):
         self.client.logout()
 
-    def load_profile(self, username: str, **kwargs):
-        account = kwargs.get("account")
+    def load_profile(self, account, **kwargs):
         data = self.client.user_info(str(account.client_pk), use_cache=False).model_dump()
         return self._clean_profile_object(data, account.pk)
 
     def load_followers_in_chunk(self, account, **kwargs):
         max_id = ""
-        max_amount = 200
+        max_amount = 20
         buffer = []
         while True:
             users, max_id = self.client.user_followers_v1_chunk(
@@ -137,7 +136,7 @@ class InstagrapiClient(InstagramBaseClient):
                 buffer.append(self._clean_user_object(user))
                 if len(buffer) >= self.batch_size:
                     yield buffer
-                    buffer.clear()
+                    buffer = []
             if not max_id:
                 break
 
@@ -146,7 +145,7 @@ class InstagrapiClient(InstagramBaseClient):
 
     def load_followings_in_chunk(self, account, **kwargs):
         max_id = ""
-        max_amount = 50
+        max_amount = 20
         buffer = []
         while True:
             users, max_id = self.client.user_following_v1_chunk(
@@ -156,7 +155,7 @@ class InstagrapiClient(InstagramBaseClient):
                 buffer.append(self._clean_user_object(user))
                 if len(buffer) >= self.batch_size:
                     yield buffer
-                    buffer.clear()
+                    buffer = []
             if not max_id:
                 break
 

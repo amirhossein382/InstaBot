@@ -38,7 +38,7 @@ class InstagramBaseClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def load_profile(self, username: str, **kwargs):
+    def load_profile(self, account, **kwargs):
         """Return dict: {username, full_name, bio, followers_count, following_count, profile_pic_url}"""
         raise NotImplementedError
 
