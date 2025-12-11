@@ -25,44 +25,50 @@ class InstagramBaseClient(ABC):
     @abstractmethod
     def get_account_client(self, settings, proxy):
         """Get account client"""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
-    def login(self, username: str, password: str):
+    def login(self, username: str, password: str, proxy: str, **kwargs):
         """Login user to instagram"""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def logout(self, username: str, password: str):
         """Logout user from instagram"""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def load_profile(self, username: str, **kwargs):
         """Return dict: {username, full_name, bio, followers_count, following_count, profile_pic_url}"""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def load_followers_in_chunk(self, account, **kwargs):
         """Return list of dicts: [{'pk':..., 'username':..., 'full_name':..., 'profile_pic_url':...}, ...]"""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def load_followings_in_chunk(self, account, **kwargs):
         """Return list of dicts: [{'pk':..., 'username':..., 'full_name':..., 'profile_pic_url':...}, ...]"""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_session(self) -> dict:
         """Return JSON serializable session."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def set_session(self, session_data: dict):
         """Load saved session."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def set_proxy(self, proxy: str):
         """Set proxy to each client."""
-        pass
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def get_user_id(self):
+        """Return user id"""
+        raise NotImplementedError

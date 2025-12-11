@@ -1,4 +1,4 @@
-import json
+# import json
 
 from django.contrib.auth import get_user_model, login, logout
 # from django.contrib.auth.signals import user_logged_in, user_logged_out
@@ -10,25 +10,23 @@ from rest_framework import status
 from rest_framework import permissions
 from rest_framework.views import APIView
 
-from apps.core.utils import Logger
+from apps.core.utils import Logger, encrypt_client_settings
+from apps.core.utils.instagram_client.exceptions import (
+    exception_mapper, InstagramError, InstagramProxyFailed
+)
 from apps.profiles.signals import profile_initialized
 from apps.profiles.services import ProfileService
 from apps.proxy.services import ProxyService
-from apps.core.utils import encrypt_client_settings
 from .models import InstagramAccount
 from .serializers import LoginSerializer
 from .services import AccountService
-from .exceptions import (
-    BadPassword, PleaseWaitFewMinutes, LoginRequired,
-    base_response_with_error, ChallengeRequired, ClientConnectionError,
-    ProxyError, HTTPError, GenericRequestError
-)
+from .exceptions import base_response_with_error
 
 account_svc = AccountService()
 profile_svc = ProfileService()
 proxy_svc = ProxyService()
 User = get_user_model()
-logger = Logger()
+_logger = Logger()
 
 
 class LoginAPIView(APIView):
@@ -37,68 +35,30 @@ class LoginAPIView(APIView):
 
     def post(self, request, *args, **kwargs):
         verification_code = request.query_params.get("verification_code")
-        print(verification_code)
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         proxy, err = proxy_svc.get_valid_proxy()
 
         if proxy:
             try:
-                client = account_svc.login_by_user_pass(
+                client = account_svc.login_user_to_instagram(
                     username=serializer.validated_data["username"],
                     password=serializer.validated_data["password"],
                     device=serializer.validated_data["device_settings"],
                     proxy=proxy,
                     code=verification_code
                 )
-            except BadPassword as msg:
-                logger.log_event(self.__class__.__name__, log_data=" login failed because bad password", level="ERROR")
-                return base_response_with_error(msg=str(msg), _status=status.HTTP_401_UNAUTHORIZED)
-            except PleaseWaitFewMinutes as msg:
-                logger.log_event(self.__class__.__name__, log_data="Login failed because throttled", level="ERROR")
-                return base_response_with_error(msg=str(msg), _status=status.HTTP_202_ACCEPTED)
-            except LoginRequired:
-                logger.log_event(self.__class__.__name__, log_data="Login failed because blocked", level="ERROR")
-                return base_response_with_error(
-                    msg="Too many request, try after 30 minutes.",
-                    _status=status.HTTP_400_BAD_REQUEST
-                )
-            except ChallengeRequired:
-                logger.log_event(self.__class__.__name__, log_data=":Login failed because challenge required",
-                                 level="ERROR")
-                return base_response_with_error(
-                    msg='Open your browser and login to your account for fix Challenge Required',
-                    _status=status.HTTP_400_BAD_REQUEST
-                )
-            except(ProxyError, HTTPError, GenericRequestError, ClientConnectionError) as err:
-                logger.log_event(self.__class__.__name__,
-                                 log_data=f"Login failed because connection error -->{str(err)}",
-                                 level="ERROR")
-                return base_response_with_error(
-                    msg='Connection error.',
-                    _status=status.HTTP_400_BAD_REQUEST
-                )
-            except Exception as err:
-                err_cls = err.__class__.__name__
-                logger.log_event(
-                    self.__class__.__name__, log_data=f"Login failed because {err_cls} error ---> {err}",
+            except InstagramError as exc:
+                msg = getattr(exc, "message", str(exc))
+                status_code = getattr(exc, "status_code", 500)
+                return base_response_with_error(msg, _status=status_code)
+            except Exception as exc:
+                exc_cls = exc.__class__.__name__
+                _logger.log_event(
+                    self.__class__.__name__, log_data=f"Login {exc_cls} error: {err}",
                     level="WARNING"
                 )
-                if "EOF when reading a line" in str(err):
-                    return base_response_with_error(
-                        msg="Open to your instagram app and accept your login and try again or go to instagram website and login to your account then try to login here again",
-                        _status=status.HTTP_400_BAD_REQUEST
-                    )
-                elif "We can't find an account with" in str(err):
-                    return base_response_with_error(
-                        msg=str(err),
-                        _status=status.HTTP_400_BAD_REQUEST
-                    )
-
-                return base_response_with_error(
-                    msg="Login failed because unknown error!",
-                    _status=status.HTTP_400_BAD_REQUEST
-                )
+                return base_response_with_error("Internal server error!.", _status=500)
             else:
                 with transaction.atomic():
                     user, created = User.objects.get_or_create(
@@ -110,12 +70,12 @@ class LoginAPIView(APIView):
                     account, account_created = InstagramAccount.objects.update_or_create(
                         user=user,
                         defaults={
-                            "client_settings": encrypt_client_settings(client.get_settings()),
+                            "client_settings": encrypt_client_settings(client.get_session()),
                             "internal_proxy": proxy
                         },
                         create_defaults={
-                            "client_settings": encrypt_client_settings(client.get_settings()),
-                            "client_pk": client.user_id,
+                            "client_settings": encrypt_client_settings(client.get_session()),
+                            "client_pk": client.get_user_id,
                             "internal_proxy": proxy
                         }
                     )
@@ -146,7 +106,7 @@ class LoginAPIView(APIView):
 class LogoutAPIView(APIView):
 
     def get(self, request):
-        logger.log_event(self.__class__.__name__, log_data="user logged out")
+        _logger.log_event(self.__class__.__name__, log_data="user logged out")
         logout(self.request)
         return Response({"detail": "Logged out successfully."}, status=status.HTTP_200_OK)
         # try:
@@ -168,36 +128,39 @@ class AccountInitialAPIView(APIView):
         if account.is_initialized:
             return Response(data="Account already initialized.", status=status.HTTP_200_OK)
 
-        logger.log_event(self.__class__.__name__, log_data="initializing account...")
+        _logger.log_event(self.__class__.__name__, log_data="initializing account...")
         try:
             client = account_svc.config.get_account_client(account)
             with transaction.atomic():
-                logger.log_event(self.__class__.__name__, log_data="fetching profile..")
+                _logger.log_event(self.__class__.__name__, log_data="fetching profile..")
                 profile_svc.fetch_profile_info(account, client)
-                logger.log_event(self.__class__.__name__, log_data="fetching followers..")
+                _logger.log_event(self.__class__.__name__, log_data="fetching followers..")
                 profile_svc.fetch_followers(account, client)
-                logger.log_event(self.__class__.__name__, log_data="fetching followings..")
+                _logger.log_event(self.__class__.__name__, log_data="fetching followings..")
                 profile_svc.fetch_followings(account, client)
-                logger.log_event(self.__class__.__name__, log_data="fetching analyses..")
+                _logger.log_event(self.__class__.__name__, log_data="fetching analyses..")
                 profile_svc.analyze_follower_changes(account=account)
                 account.is_initialized = True
                 account.save()
                 transaction.on_commit(lambda: profile_initialized.send(
                     sender=self.__class__.__name__, account_id=account.id
                 ))
-        except(ProxyError, HTTPError, GenericRequestError, ClientConnectionError) as err:
-            error_cls = err.__class__.__name__
-            logger.log_event(
-                self.__class__.__name__, f"Error {error_cls}: {str(err)}", level="ERROR"
-            )
-            return base_response_with_error(msg=f"Connection error: {str(err)}", _status=status.HTTP_305_USE_PROXY)
-        except Exception as err:
-            err_cls = err.__class__.__name__
-            logger.log_event(self.__class__.__name__, log_data=f"Error {err_cls}: {str(e)}", level="ERROR")
-            return base_response_with_error(
-                msg="Initialization failed for unknown error!",
-                _status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        except Exception as exc:
+            try:
+                exception_mapper(exc)
+            except InstagramProxyFailed as msg:
+                error_cls = msg.__class__.__name__
+                _logger.log_event(
+                    self.__class__.__name__, f"Error {error_cls}: {str(msg)}", level="ERROR"
+                )
+                return base_response_with_error(msg=f"Connection error: {str(msg)}", _status=status.HTTP_305_USE_PROXY)
+            except Exception as msg:
+                err_cls = msg.__class__.__name__
+                _logger.log_event(self.__class__.__name__, log_data=f"Error {err_cls}: {str(msg)}", level="ERROR")
+                return base_response_with_error(
+                    msg="Initialization failed for unknown error!",
+                    _status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
 
-        logger.log_event(self.__class__.__name__, log_data="Account initial done.")
+        _logger.log_event(self.__class__.__name__, log_data="Account initial done.")
         return Response(data="initialized successfully", status=status.HTTP_201_CREATED)
