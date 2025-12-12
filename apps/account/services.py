@@ -53,5 +53,5 @@ class AccountService:
         try:
             client.login(username, password, proxy, **kwargs)
         except Exception as exc:
-            raise exception_mapper(exc)
+            exception_mapper(exc)
         return client

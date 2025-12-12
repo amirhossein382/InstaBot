@@ -4,7 +4,6 @@ import random
 from django.utils import timezone
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
-from apps.account.services import AccountService
 from apps.enums import FollowerChangeStatusEnum
 from apps.core.utils.instagram_client import InstagramBaseClient
 from .serializers import ProfileSerializer
@@ -94,7 +93,6 @@ class ProfileConfig:
 
 
 class ProfileService:
-    account_svc = AccountService()
     config = ProfileConfig()
     batch_size = 1000
 
@@ -103,7 +101,7 @@ class ProfileService:
         try:
             return client.load_profile(account=account)
         except Exception as exc:
-            raise exception_mapper(exc)
+            exception_mapper(exc)
 
     @staticmethod
     def load_followers(account, client: InstagramBaseClient):
@@ -111,7 +109,7 @@ class ProfileService:
             for users in client.load_followers_in_chunk(account=account):
                 yield users
         except Exception as exc:
-            raise exception_mapper(exc)
+            exception_mapper(exc)
 
     @staticmethod
     def load_followings(account, client: InstagramBaseClient):
@@ -119,7 +117,7 @@ class ProfileService:
             for users in client.load_followings_in_chunk(account=account):
                 yield users
         except Exception as exc:
-            raise exception_mapper(exc)
+            exception_mapper(exc)
 
     def fetch_profile_info(self, account, client: InstagramBaseClient) -> None:
         profile_info = self.load_profile_info(account, client)

@@ -43,16 +43,30 @@ class InstagramProxyFailed(InstagramError):
     message = "Proxy connection error."
 
 
+class InstagramActionBlocked(InstagramError):
+    status_code = 429
+    message = "Instagram blocked this action. Please wait and try again later."
+
+
+class InstagramUnauthorized(InstagramError):
+    status_code = 401
+    message = "Session expired or unauthorized. Please login again."
+
+
 def exception_mapper(exception: Exception):
     if isinstance(exception, BadPassword):
-        return InstagramInvalidCredentials()
+        raise InstagramInvalidCredentials()
     elif isinstance(exception, ChallengeRequired):
-        return InstagramTwoFactorRequired()
+        raise InstagramTwoFactorRequired()
     elif isinstance(exception, PleaseWaitFewMinutes):
-        return InstagramThrottled()
+        raise InstagramThrottled()
     elif isinstance(exception, LoginRequired):
-        return InstagramLoginRequired()
+        raise InstagramLoginRequired()
     elif isinstance(exception, (ProxyError, HTTPError, GenericRequestError, ClientConnectionError)):
-        return InstagramProxyFailed()
+        raise InstagramProxyFailed()
+    elif isinstance(exception, FeedbackRequired):
+        raise InstagramActionBlocked()
+    elif isinstance(exception, ClientUnauthorizedError):
+        raise InstagramUnauthorized()
     else:
-        return Exception("Unknow error.")
+        raise Exception("Unknow error.")
