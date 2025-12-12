@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from .instagrapi_exceptions import *
 
+from apps.downloader.exceptions import UnknownMediaUrlType
+
 
 class InstagramError(Exception, ABC):
     """Base error for all Instagram providers."""
@@ -53,6 +55,21 @@ class InstagramUnauthorized(InstagramError):
     message = "Session expired or unauthorized. Please login again."
 
 
+class InstagramMediaError(InstagramError):
+    status_code = 500
+    message = "Failed to resolve Instagram media URL."
+
+
+class InstagramMediaNotFound(InstagramMediaError):
+    status_code = 404
+    message = "Media not found or no longer available."
+
+
+class InstagramUnknownMediaUrlType(InstagramMediaError):
+    status_code = 400
+    message = "Invalid or unsupported Instagram media URL."
+
+
 def exception_mapper(exception: Exception):
     if isinstance(exception, BadPassword):
         raise InstagramInvalidCredentials()
@@ -68,5 +85,9 @@ def exception_mapper(exception: Exception):
         raise InstagramActionBlocked()
     elif isinstance(exception, ClientUnauthorizedError):
         raise InstagramUnauthorized()
+    elif isinstance(exception, MediaNotFound):
+        raise InstagramMediaNotFound()
+    elif isinstance(exception, UnknownMediaUrlType):
+        raise InstagramUnknownMediaUrlType()
     else:
         raise Exception("Unknow error.")

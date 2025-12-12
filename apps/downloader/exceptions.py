@@ -1,6 +1,3 @@
-from instagrapi.exceptions import MediaNotFound
-
-
-class UnknownMediaUrlType(BaseException):
+class UnknownMediaUrlType(Exception):
     def __str__(self):
-        return "Unknown media type url!"
+        return "Unknown media url type"

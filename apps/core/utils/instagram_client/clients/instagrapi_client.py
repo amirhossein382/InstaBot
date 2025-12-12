@@ -1,9 +1,12 @@
 from django.contrib.auth import get_user_model
 
 from instagrapi import Client
+from instagrapi.types import Media, Story
 
 from apps.account.exceptions import UserUnActiveException
 from apps.account.models import InstagramAccount
+from apps.downloader.exceptions import UnknownMediaUrlType
+from apps.enums import MediasTypeEnum, UrlTypeEnum
 from ..exceptions.instagrapi_exceptions import (
     BadPassword, ProxyError, HTTPError,
     ClientConnectionError, GenericRequestError
@@ -40,25 +43,119 @@ class _InstagrapiConfig:
             cpu=device["cpu"], locale=self.locale, version_code=self.version_code
         )
 
+    @staticmethod
+    def extract_url_from_album(media_info: Media) -> dict:
+        resources = getattr(media_info, "resources", [])
+        urls = [resource.video_url or resource.thumbnail_url for resource in resources]
+        return {"type": MediasTypeEnum.ALBUM, "urls": urls}
+
+    @staticmethod
+    def extract_url_from_reel(media_info: Media) -> dict:
+        url = getattr(media_info, "video_url", None) or getattr(media_info, "thumbnail_url", None)
+        return {"type": MediasTypeEnum.REEL_OR_POST, "urls": url}
+
+    @staticmethod
+    def extract_url_from_story(story_info: Story) -> dict:
+        url = getattr(story_info, "video_url", None) or getattr(story_info, "thumbnail_url", None)
+        return {"type": MediasTypeEnum.STORY, "urls": url}
+
+    def resolve_post_url(self, url, client):
+        media_pk = client.media_pk_from_url(url)
+        media_info = client.media_info_v1(media_pk)
+        if media_info.media_type == 8:
+            return self.extract_url_from_album(media_info)
+        return self.extract_url_from_reel(media_info)
+
+    def resolve_story_url(self, url, client):
+        story_pk = client.story_pk_from_url(url)
+        story_info = client.story_info_v1(story_pk)
+        return self.extract_url_from_story(story_info)
+
 
 class InstagrapiClient(InstagramBaseClient):
     config = _InstagrapiConfig()
     batch_size = 1000
 
-    def __init__(self, settings=None, proxy=None):
+    def __init__(self, settings: dict = None, proxy: str = None):
+        self.op = self.__class__.__name__
         self.client = Client()
         self.client.delay_range = range(5, 16)
         if settings:
-            self.client.set_settings(settings)
+            self.set_session(settings)
         if proxy:
-            self.client.set_proxy(proxy)
+            self.set_proxy(proxy)
+
+    @property
+    def get_user_id(self):
+        return self.client.user_id
 
     @classmethod
     def get_account_client(cls, settings, proxy):
         return cls(settings, proxy)
 
+    def get_session(self):
+        return self.client.get_settings()
+
+    def set_session(self, session_data: dict):
+        self.client.set_settings(session_data)
+
+    def set_proxy(self, proxy: str):
+        self.client.set_proxy(proxy)
+
+    def load_profile(self, account, **kwargs):
+        data = self.client.user_info(str(account.client_pk), use_cache=False).model_dump()
+        return self._clean_profile_object(data, account.pk)
+
+    def load_followers_in_chunk(self, account, **kwargs):
+        max_id = ""
+        max_amount = 20
+        buffer = []
+        while True:
+            users, max_id = self.client.user_followers_v1_chunk(
+                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
+            )
+            for user in users:
+                buffer.append(self._clean_user_object(user))
+                if len(buffer) >= self.batch_size:
+                    yield buffer
+                    buffer = []
+            if not max_id:
+                break
+
+        if buffer:
+            yield buffer
+
+    def load_followings_in_chunk(self, account, **kwargs):
+        max_id = ""
+        max_amount = 20
+        buffer = []
+        while True:
+            users, max_id = self.client.user_following_v1_chunk(
+                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
+            )
+            for user in users:
+                buffer.append(self._clean_user_object(user))
+                if len(buffer) >= self.batch_size:
+                    yield buffer
+                    buffer = []
+            if not max_id:
+                break
+
+        if buffer:
+            yield buffer
+
+    def resolve_media_url(self, url) -> dict:
+        url_type = self._detect_instagram_url_type(url)
+        match url_type:
+            case UrlTypeEnum.POST:
+                return self.config.resolve_post_url(url, self.client)
+            case UrlTypeEnum.STORY:
+                return self.config.resolve_story_url(url, self.client)
+            case _:
+                raise UnknownMediaUrlType()
+
     def login(self, username: str, password: str, proxy: str, **kwargs):
-        op = "login_by_user_pass"
+        op = self.op + ".login"
         device = kwargs.get("device")
         code = kwargs.get("code")
         self.client.set_proxy(proxy)
@@ -119,58 +216,3 @@ class InstagrapiClient(InstagramBaseClient):
 
     def logout(self, username: str, password: str):
         self.client.logout()
-
-    def load_profile(self, account, **kwargs):
-        data = self.client.user_info(str(account.client_pk), use_cache=False).model_dump()
-        return self._clean_profile_object(data, account.pk)
-
-    def load_followers_in_chunk(self, account, **kwargs):
-        max_id = ""
-        max_amount = 20
-        buffer = []
-        while True:
-            users, max_id = self.client.user_followers_v1_chunk(
-                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
-            )
-            for user in users:
-                buffer.append(self._clean_user_object(user))
-                if len(buffer) >= self.batch_size:
-                    yield buffer
-                    buffer = []
-            if not max_id:
-                break
-
-        if buffer:
-            yield buffer
-
-    def load_followings_in_chunk(self, account, **kwargs):
-        max_id = ""
-        max_amount = 20
-        buffer = []
-        while True:
-            users, max_id = self.client.user_following_v1_chunk(
-                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
-            )
-            for user in users:
-                buffer.append(self._clean_user_object(user))
-                if len(buffer) >= self.batch_size:
-                    yield buffer
-                    buffer = []
-            if not max_id:
-                break
-
-        if buffer:
-            yield buffer
-
-    def get_session(self):
-        return self.client.get_settings()
-
-    def set_session(self, session_data: dict):
-        self.client.set_settings(session_data)
-
-    def set_proxy(self, proxy: str):
-        self.client.set_proxy(proxy)
-
-    @property
-    def get_user_id(self):
-        return self.client.user_id
