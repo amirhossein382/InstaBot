@@ -9,7 +9,7 @@ from apps.notifications import tasks as notifications_tasks
 from apps.core.utils import Logger
 from apps.core.utils.instagram_client import get_instagram_account_client
 from apps.core.utils.instagram_client.exceptions import (
-    InstagramProxyFailed, InstagramLoginRequired, InstagramThrottled,
+    InstagramConnectionError, InstagramLoginRequired, InstagramThrottled,
     InstagramTwoFactorRequired, InstagramUnauthorized, InstagramActionBlocked
 )
 from apps.enums import FollowerChangeStatusEnum, NotificationsTypeEnum
@@ -85,7 +85,7 @@ def analyze_and_update_follow_data(self, account_id):
         for chunk in _profile_svc.load_followings(account, client):
             for following in chunk:
                 new_followings_dict[following["user_pk"]] = following
-    except InstagramProxyFailed as err:
+    except InstagramConnectionError as err:
         _logger.log_event(
             op, f"[{account_id}] Connection error!", level="ERROR"
         )
@@ -106,7 +106,7 @@ def analyze_and_update_follow_data(self, account_id):
                 account.save(update_fields=("internal_proxy",))
     except InstagramLoginRequired as err:
         _logger.log_event(
-            op, f"Login required: {err} ---> pausing tasks for account {account.pk}",
+            op, f"Login required: {str(err)} ---> pausing tasks for account {account.pk}",
             level="ERROR"
         )
         _pause_account_tasks(account)

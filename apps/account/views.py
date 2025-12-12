@@ -48,9 +48,8 @@ class LoginAPIView(APIView):
                     code=verification_code
                 )
             except InstagramError as exc:
-                msg = getattr(exc, "message", str(exc))
                 status_code = getattr(exc, "status_code", 500)
-                return base_response_with_error(msg, _status=status_code)
+                return base_response_with_error(str(exc), _status=status_code)
             except Exception as exc:
                 exc_cls = exc.__class__.__name__
                 _logger.log_event(
@@ -146,9 +145,8 @@ class AccountInitialAPIView(APIView):
                 ))
         except InstagramError as exc:
             status_code = getattr(exc, "status_code", 500)
-            message = getattr(exc, "message", str("exc"))
             return base_response_with_error(
-                msg=message, _status=status_code
+                msg=str(exc), _status=status_code
             )
         except Exception as msg:
             err_cls = msg.__class__.__name__
