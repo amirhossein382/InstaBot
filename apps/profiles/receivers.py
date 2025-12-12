@@ -13,7 +13,7 @@ logger = Logger()
 
 
 @receiver(profile_initialized)
-def start_periodic_analysis(_, account_id, __):
+def start_periodic_analysis(requests, account_id, **kwargs):
     op = start_periodic_analysis.__name__
     logger.log_event(op, "creating analyze and update follow data task...")
     profile_svc.config.create_analyze_update_follow_data_periodic_task(account_id)
