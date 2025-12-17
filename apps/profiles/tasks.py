@@ -3,29 +3,30 @@ from django.db import transaction
 from django.utils.timezone import datetime, now, timedelta
 from celery import shared_task, Task, exceptions as celery_exceptions
 
-from apps.account.exceptions import (
-    PleaseWaitFewMinutes, LoginRequired, ChallengeRequired, FeedbackRequired, HTTPError,
-    ProxyError, ClientUnauthorizedError, GenericRequestError, ClientConnectionError
-)
 from apps.account.models import InstagramAccount
-from apps.notifications.services import NotificationService
+from apps.account.services import AccountService
 from apps.notifications import tasks as notifications_tasks
 from apps.core.utils import Logger
+from apps.core.utils.instagram_client import get_instagram_account_client
+from apps.core.utils.instagram_client.exceptions import (
+    InstagramConnectionError, InstagramLoginRequired, InstagramThrottled,
+    InstagramTwoFactorRequired, InstagramUnauthorized, InstagramActionBlocked
+)
 from apps.enums import FollowerChangeStatusEnum, NotificationsTypeEnum
 from apps.proxy.services import ProxyService
 from .models import Follower, Following, FollowerChange, Profile, AccountGrowthLog
 from .serializers import ProfileSerializer
 from .services import ProfileService
 
+_account_svc = AccountService()
 _profile_svc = ProfileService()
 _proxy_svc = ProxyService()
 _logger = Logger()
-_reenable_time = now() + timedelta(hours=12)
 
 
 def _pause_account_tasks(account: InstagramAccount):
-    _profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account.id, pause=True)
-    _profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account.id, pause=True)
+    _profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account.pk, pause=True)
+    _profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account.pk, pause=True)
     account.is_analyses_paused = True
     account.save(update_fields=("is_analyses_paused",))
 
@@ -53,7 +54,7 @@ def analyze_and_update_follow_data(self, account_id):
     account = InstagramAccount.objects.select_related("user").get(pk=account_id)
     if not account.user.is_authenticated:
         _logger.log_event(
-            op, f"not authenticated!. pausing tasks for account {account.id}", level="WARNING"
+            op, f"not authenticated!. pausing tasks for account {account.pk}", level="WARNING"
         )
         _pause_account_tasks(account)
         notifications_tasks.create_notification(
@@ -71,9 +72,9 @@ def analyze_and_update_follow_data(self, account_id):
         return
 
     try:
-        _logger.log_event(op, f"getting client for account {account.id}")
-        client = _profile_svc.account_svc.config.get_account_client(account)
-        _logger.log_event(op, f"getting new data from instagram for account {account.id}")
+        _logger.log_event(op, f"getting client for account {account.pk}")
+        client = get_instagram_account_client(account.client_settings, account.internal_proxy)
+        _logger.log_event(op, f"getting new data from instagram for account {account.pk}")
         new_profile_info = _profile_svc.load_profile_info(account, client)
         new_followers_dict = {}
         for chunk in _profile_svc.load_followers(account, client):
@@ -84,7 +85,7 @@ def analyze_and_update_follow_data(self, account_id):
         for chunk in _profile_svc.load_followings(account, client):
             for following in chunk:
                 new_followings_dict[following["user_pk"]] = following
-    except (ProxyError, HTTPError, GenericRequestError, ClientConnectionError) as err:
+    except InstagramConnectionError as err:
         _logger.log_event(
             op, f"[{account_id}] Connection error!", level="ERROR"
         )
@@ -103,22 +104,22 @@ def analyze_and_update_follow_data(self, account_id):
             else:
                 account.internal_proxy = proxy
                 account.save(update_fields=("internal_proxy",))
-    except LoginRequired as err:
+    except InstagramLoginRequired as err:
         _logger.log_event(
-            op, f"Login required: {err} ---> pausing tasks for account {account.id}",
+            op, f"Login required: {str(err)} ---> pausing tasks for account {account.pk}",
             level="ERROR"
         )
         _pause_account_tasks(account)
-        _profile_svc.account_svc.logout_django_by_user(account.user)
+        _account_svc.logout_django_by_user(account.user)
         notifications_tasks.create_notification(
             account_id=account_id, profile=None, title="Authentication",
             message="Your account logged out. please login again!",
             notif_type=NotificationsTypeEnum.ERROR,
             # push=True
         )
-    except PleaseWaitFewMinutes as err:
+    except InstagramThrottled as err:
         _logger.log_event(
-            op, f"Rate limited: delaying 1 hour for account {account.id} --> {str(err)}",
+            op, f"Rate limited: delaying 1 hour for account {account.pk} --> {str(err)}",
             level="ERROR"
         )
         notifications_tasks.create_notification(
@@ -128,7 +129,7 @@ def analyze_and_update_follow_data(self, account_id):
             # push=True
         )
         raise self.retry(exc=err, countdown=3600)
-    except ChallengeRequired as err:
+    except InstagramTwoFactorRequired as err:
         _logger.log_event(op, log_data=f" getting new data failed because challenge required -> {str(err)}",
                           level="ERROR")
         _pause_account_tasks(account)
@@ -138,14 +139,15 @@ def analyze_and_update_follow_data(self, account_id):
             notif_type=NotificationsTypeEnum.ERROR,
             # push=True
         )
-    except FeedbackRequired as err:
+    except InstagramActionBlocked as err:
         _logger.log_event(
             op, log_data=f" getting new data failed because feedback required -->{str(err)}",
             level="ERROR"
         )
         _pause_account_tasks(account)
+        reenable_time = now() + timedelta(hours=12)
         apply_sync_resume_account_tasks.apply_async(
-            (account_id,), eta=_reenable_time
+            (account_id,), eta=reenable_time
         )
         notifications_tasks.create_notification(
             account_id=account_id, profile=None, title="Feedback Required",
@@ -153,7 +155,7 @@ def analyze_and_update_follow_data(self, account_id):
             notif_type=NotificationsTypeEnum.ERROR,
             # push=True
         )
-    except ClientUnauthorizedError as err:
+    except InstagramUnauthorized as err:
         _logger.log_event(
             op, f"[{account_id}] Authorization error during analyses: {str(err)}", level="ERROR"
         )
@@ -177,7 +179,7 @@ def analyze_and_update_follow_data(self, account_id):
         )
 
     else:
-        _logger.log_event(op, f"analyze instagram new data for account {account.id}")
+        _logger.log_event(op, f"analyze instagram new data for account {account.pk}")
 
         old_profile_info = Profile.objects.get(account=account)
         old_followers_dict = {

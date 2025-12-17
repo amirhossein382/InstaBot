@@ -1,10 +1,10 @@
 from django.dispatch import receiver
-from django.db.models.signals import post_save
-from django.contrib.auth import user_logged_out, user_logged_in
-from django_celery_beat.models import PeriodicTask
+# from django.db.models.signals import post_save
+# from django.contrib.auth import user_logged_out, user_logged_in
+# from django_celery_beat.models import PeriodicTask
 
 from apps.core.utils import Logger
-from apps.account.models import InstagramAccount
+# from apps.account.models import InstagramAccount
 from .services import ProfileService
 from .signals import profile_initialized
 
@@ -13,7 +13,7 @@ logger = Logger()
 
 
 @receiver(profile_initialized)
-def start_periodic_analysis(sender, account_id, **kwargs):
+def start_periodic_analysis(requests, account_id, **kwargs):
     op = start_periodic_analysis.__name__
     logger.log_event(op, "creating analyze and update follow data task...")
     profile_svc.config.create_analyze_update_follow_data_periodic_task(account_id)
