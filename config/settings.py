@@ -219,4 +219,6 @@ FIREBASE_CRED_PATH = os.path.join(BASE_DIR, "firebase_credentials.json")
 
 # Encryption
 CLIENT_SETTINGS_KEY = env.str("DJANGO_CLIENT_SETTINGS_KEY")
-INSTAGRAM_CLIENT = "instagrapi"  # choices are instaloader/instagrapi
+INSTAGRAM_PROVIDER = env.str("INSTAGRAM_PROVIDER", "instagrapi")
+if INSTAGRAM_PROVIDER != "instagrapi":
+    raise ValueError(f"Invalid INSTAGRAM_PROVIDER: {INSTAGRAM_PROVIDER}")

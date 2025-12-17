@@ -2,34 +2,31 @@ version: "3.9"
 
 services:
   web:
-    build: .
+    build:
+      context: .
+      args:
+        INSTAGRAM_PROVIDER: ${INSTAGRAM_PROVIDER}
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
     ports:
       - "8000:8000"
-    depends_on:
-      - data_base
     env_file:
       - .env
-
-  data_base:
-    image: postgres:15
-    volumes:
-      - postgres_data:/var/lib/postgresql/data/
-    environment:
-      - "POSTGRES_HOST_AUTH_METHOD=trust"
-
-  redis:
-    image: redis:latest
-    ports:
-      - "6379:6379"
+    depends_on:
+      data_base:
+        condition: service_healthy
 
   celery_worker:
-    build: .
+    build:
+      context: .
+      args:
+        INSTAGRAM_PROVIDER: ${INSTAGRAM_PROVIDER}
     command: celery -A config.celery_conf worker -l info
     volumes:
       - .:/app
+    env_file:
+      - .env
     depends_on:
       - redis
     healthcheck:
@@ -37,20 +34,36 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-    env_file:
-      - .env
 
   celery_beat:
-    build: .
+    build:
+      context: .
+      args:
+        INSTAGRAM_PROVIDER: ${INSTAGRAM_PROVIDER}
     command: celery -A config.celery_conf beat -l info
     volumes:
       - .:/app
-    depends_on:
-      - redis
     env_file:
       - .env
+    depends_on:
+      - redis
 
+  data_base:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - "POSTGRES_HOST_AUTH_METHOD=trust"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
 
 volumes:
   postgres_data:
