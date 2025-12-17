@@ -87,7 +87,7 @@ class InstagrapiClient(InstagramBaseClient):
 
     @property
     def get_user_id(self):
-        return self.client.user_id
+        return str(self.client.user_id)
 
     @classmethod
     def get_account_client(cls, settings, proxy):
@@ -103,7 +103,7 @@ class InstagrapiClient(InstagramBaseClient):
         self.client.set_proxy(proxy)
 
     def load_profile(self, account, **kwargs):
-        data = self.client.user_info(str(account.client_pk), use_cache=False).model_dump()
+        data = self.client.user_info(self.get_user_id, use_cache=False).model_dump()
         return self._clean_profile_object(data, account.pk)
 
     def load_followers_in_chunk(self, account, **kwargs):
@@ -112,7 +112,7 @@ class InstagrapiClient(InstagramBaseClient):
         buffer = []
         while True:
             users, max_id = self.client.user_followers_v1_chunk(
-                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
+                user_id=self.get_user_id, max_amount=max_amount, max_id=max_id
             )
             for user in users:
                 buffer.append(self._clean_user_object(user))
@@ -131,7 +131,7 @@ class InstagrapiClient(InstagramBaseClient):
         buffer = []
         while True:
             users, max_id = self.client.user_following_v1_chunk(
-                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
+                user_id=self.get_user_id, max_amount=max_amount, max_id=max_id
             )
             for user in users:
                 buffer.append(self._clean_user_object(user))

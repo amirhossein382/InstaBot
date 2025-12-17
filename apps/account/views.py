@@ -73,7 +73,6 @@ class LoginAPIView(APIView):
                         },
                         create_defaults={
                             "client_settings": encrypt_client_settings(client.get_session()),
-                            "client_pk": client.get_user_id,
                             "internal_proxy": proxy
                         }
                     )
