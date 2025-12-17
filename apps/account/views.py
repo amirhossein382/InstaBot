@@ -44,7 +44,7 @@ class LoginAPIView(APIView):
                     username=serializer.validated_data["username"],
                     password=serializer.validated_data["password"],
                     device=serializer.validated_data["device_settings"],
-                    proxy=proxy,
+                    proxy=proxy.proxy,
                     code=verification_code
                 )
             except InstagramError as exc:
