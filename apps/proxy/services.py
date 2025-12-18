@@ -57,6 +57,6 @@ class ProxyService:
                     return proxy, err
                 proxy.is_valid = False
                 proxy.is_active = False
-                proxy.save()
+                proxy.save(update_fields=("is_valid", "is_active"))
 
         return False, err

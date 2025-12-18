@@ -138,7 +138,7 @@ class AccountInitialAPIView(APIView):
                 _logger.log_event(self.__class__.__name__, log_data="fetching analyses..")
                 profile_svc.analyze_follower_changes(account=account)
                 account.is_initialized = True
-                account.save()
+                account.save(update_fields=("is_initialized",))
                 transaction.on_commit(lambda: profile_initialized.send(
                     sender=self.__class__.__name__, account_id=account.pk
                 ))
