@@ -111,9 +111,12 @@ class InstagrapiClient(InstagramBaseClient):
         max_amount = 20
         buffer = []
         while True:
+            self._do_sleep()
             users, max_id = self.client.user_followers_v1_chunk(
                 user_id=self.get_user_id, max_amount=max_amount, max_id=max_id
             )
+            print(f"Following requests count {self.client.private_requests_count}")
+            self._normalize_requests(users, self.client)
             for user in users:
                 buffer.append(self._clean_user_object(user))
                 if len(buffer) >= self.batch_size:
@@ -130,9 +133,12 @@ class InstagrapiClient(InstagramBaseClient):
         max_amount = 20
         buffer = []
         while True:
+            self._do_sleep()
             users, max_id = self.client.user_following_v1_chunk(
                 user_id=self.get_user_id, max_amount=max_amount, max_id=max_id
             )
+            print(f"Following requests count {self.client.private_requests_count}")
+            self._normalize_requests(users, self.client)
             for user in users:
                 buffer.append(self._clean_user_object(user))
                 if len(buffer) >= self.batch_size:
