@@ -59,7 +59,7 @@ class InstagramAccountAdmin(admin.ModelAdmin):
     exclude = ("client_settings",)
     list_display = ("username", "is_initialized", "is_analyses_paused")
     list_filter = ("is_initialized", "is_analyses_paused")
-    readonly_fields = ("user","client_pk")
+    readonly_fields = ("user",)
     inlines = (ProfileAdmin,)
 
     def username(self, obj):

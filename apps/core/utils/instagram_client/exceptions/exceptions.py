@@ -76,9 +76,14 @@ class InstagramUnknownMediaUrlType(InstagramMediaError):
     default_message = "Invalid or unsupported Instagram media URL."
 
 
+class InstagramAccountNotFound(InstagramError):
+    status_code = 404
+    default_message = "We can't find an account with entered username. Try another phone number or email, or if you don't have an Instagram account, you can sign up"
+
+
 def exception_mapper(exception: Exception):
     if isinstance(exception, BadPassword):
-        raise InstagramInvalidCredentials()
+        raise InstagramInvalidCredentials(str(exception))
     elif isinstance(exception, ChallengeError):
         raise InstagramTwoFactorRequired(str(exception))
     elif isinstance(exception, PleaseWaitFewMinutes):
@@ -99,4 +104,6 @@ def exception_mapper(exception: Exception):
     elif isinstance(exception, UnknownMediaUrlType):
         raise InstagramUnknownMediaUrlType()
     else:
-        raise Exception("Unknow error.")
+        if "We can't find an account" in str(exception):
+            raise InstagramAccountNotFound(str(exception))
+        raise

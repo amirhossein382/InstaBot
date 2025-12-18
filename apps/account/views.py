@@ -53,7 +53,7 @@ class LoginAPIView(APIView):
             except Exception as exc:
                 exc_cls = exc.__class__.__name__
                 _logger.log_event(
-                    self.__class__.__name__, log_data=f"Login {exc_cls} error: {err}",
+                    self.__class__.__name__, log_data=f"Login {exc_cls} error: {exc}",
                     level="WARNING"
                 )
                 return base_response_with_error("Internal server error!.", _status=500)
