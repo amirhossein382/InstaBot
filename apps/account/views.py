@@ -102,7 +102,7 @@ class LoginAPIView(APIView):
 
 class LogoutAPIView(APIView):
 
-    def get(self, **kwargs):
+    def get(self, *args, **kwargs):
         _logger.log_event(self.__class__.__name__, log_data="user logged out")
         logout(self.request)
         return Response({"detail": "Logged out successfully."}, status=status.HTTP_200_OK)

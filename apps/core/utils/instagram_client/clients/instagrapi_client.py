@@ -177,15 +177,19 @@ class InstagrapiClient(InstagramBaseClient):
                         self.client.get_timeline_feed()
                         _logger.log_event(op, log_data="User instagram session is valid.")
                     except (ProxyError, HTTPError, GenericRequestError, ClientConnectionError) as err:
+                        err_cls = err.__class__.__name__
                         _logger.log_event(op,
-                                          f"Connection error, retries :{retries}/{max_retries} -->{str(err)}")
+                                          f"{err_cls} error: {str(err)}, retries :{retries}/{max_retries}.")
                         if retries == max_retries:
                             _logger.log_event(op, f"attempt {retries}/{max_retries}: {proxy} is not working...")
                             raise ProxyError(f"{proxy} is not working!")
 
                     except Exception as err:
-                        _logger.log_event(op, log_data=f"User instagram session is not valid --> {err}",
-                                          level="ERROR")
+                        err_cls = err.__class__.__name__
+                        _logger.log_event(
+                            op, log_data=f"User instagram session is not valid, {err_cls} error: {err}",
+                            level="ERROR"
+                        )
                         self.client.set_settings({})  # remove invalid settings
                         settings = decrypt_client_settings(account.client_settings)
                         self.client.set_device(device=settings["device_settings"])

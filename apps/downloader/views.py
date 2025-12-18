@@ -23,7 +23,7 @@ class DownloaderUrlResolverAPIView(APIView):
             err_class = exc.__class__.__name__
             _logger.log_event(
                 self.__class__.__name__,
-                log_data=f"{err_class} exception while media resolving! :{str(exc)}", level="WARNING",
+                log_data=f"{err_class} error while media resolving! :{str(exc)}", level="WARNING",
             )
             return base_response_with_error(msg="Failed to resolve media url!",
                                             _status=rest_status.HTTP_400_BAD_REQUEST)
