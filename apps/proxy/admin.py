@@ -12,7 +12,7 @@ _proxy_svc = ProxyService()
 @admin.register(InternalProxy)
 class InternalProxyAdmin(admin.ModelAdmin):
     paginator = CustomModelAdminPaginator
-    list_display = ("is_valid", "is_active", "capacity", "used_slots")
+    list_display = ("id", "is_valid", "is_active", "capacity", "used_slots")
     list_filter = ("is_valid", "is_active")
 
     def save_model(self, request, obj, form, change):
