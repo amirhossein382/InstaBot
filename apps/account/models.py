@@ -86,7 +86,6 @@ class AdminUser(CustomUser):
 
 class InstagramAccount(BaseTimeStampedModel):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="instagram_account")
-    client_pk = models.BigIntegerField(unique=True, null=True, blank=True)
     client_settings = models.TextField()
     internal_proxy = models.ForeignKey(
         "proxy.InternalProxy", on_delete=models.SET_NULL,

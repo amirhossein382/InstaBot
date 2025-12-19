@@ -54,7 +54,7 @@ def save_client_settings_for_account(account, settings_dict: Dict):
     """Encrypt and store client settings. Atomic and updates metadata."""
     encrypted = encrypt_client_settings(settings_dict)
     account.client_settings = encrypted
-    account.save(update_fields=["client_settings"])
+    account.save(update_fields=("client_settings",))
 
 
 def get_client_settings_for_account(account) -> Optional[Dict]:

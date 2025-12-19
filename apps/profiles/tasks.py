@@ -1,7 +1,7 @@
 from django.db.models import Q
 from django.db import transaction
 from django.utils.timezone import datetime, now, timedelta
-from celery import shared_task, Task, exceptions as celery_exceptions
+from celery import shared_task, exceptions as celery_exceptions
 
 from apps.account.models import InstagramAccount
 from apps.account.services import AccountService
@@ -17,6 +17,7 @@ from apps.proxy.services import ProxyService
 from .models import Follower, Following, FollowerChange, Profile, AccountGrowthLog
 from .serializers import ProfileSerializer
 from .services import ProfileService
+from ..core.tasks import BaseRetryTask
 
 _account_svc = AccountService()
 _profile_svc = ProfileService()
@@ -38,12 +39,6 @@ def apply_sync_resume_account_tasks(account_id):
     account = InstagramAccount.objects.get(id=account_id)
     account.is_analyses_paused = False
     account.save(update_fields=("is_analyses_paused",))
-
-
-class BaseRetryTask(Task):
-    autoretry_for = (ConnectionError, TimeoutError)
-    retry_kwargs = {"max_retries": 3}
-    retry_backoff = True
 
 
 @shared_task(bind=True, base=BaseRetryTask)

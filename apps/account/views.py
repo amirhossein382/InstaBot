@@ -44,7 +44,7 @@ class LoginAPIView(APIView):
                     username=serializer.validated_data["username"],
                     password=serializer.validated_data["password"],
                     device=serializer.validated_data["device_settings"],
-                    proxy=proxy,
+                    proxy=proxy.proxy,
                     code=verification_code
                 )
             except InstagramError as exc:
@@ -53,7 +53,7 @@ class LoginAPIView(APIView):
             except Exception as exc:
                 exc_cls = exc.__class__.__name__
                 _logger.log_event(
-                    self.__class__.__name__, log_data=f"Login {exc_cls} error: {err}",
+                    self.__class__.__name__, log_data=f"Login {exc_cls} error: {exc}",
                     level="WARNING"
                 )
                 return base_response_with_error("Internal server error!.", _status=500)
@@ -73,7 +73,6 @@ class LoginAPIView(APIView):
                         },
                         create_defaults={
                             "client_settings": encrypt_client_settings(client.get_session()),
-                            "client_pk": client.get_user_id,
                             "internal_proxy": proxy
                         }
                     )
@@ -103,7 +102,7 @@ class LoginAPIView(APIView):
 
 class LogoutAPIView(APIView):
 
-    def get(self, **kwargs):
+    def get(self, *args, **kwargs):
         _logger.log_event(self.__class__.__name__, log_data="user logged out")
         logout(self.request)
         return Response({"detail": "Logged out successfully."}, status=status.HTTP_200_OK)
@@ -139,7 +138,7 @@ class AccountInitialAPIView(APIView):
                 _logger.log_event(self.__class__.__name__, log_data="fetching analyses..")
                 profile_svc.analyze_follower_changes(account=account)
                 account.is_initialized = True
-                account.save()
+                account.save(update_fields=("is_initialized",))
                 transaction.on_commit(lambda: profile_initialized.send(
                     sender=self.__class__.__name__, account_id=account.pk
                 ))

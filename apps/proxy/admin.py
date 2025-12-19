@@ -12,19 +12,22 @@ _proxy_svc = ProxyService()
 @admin.register(InternalProxy)
 class InternalProxyAdmin(admin.ModelAdmin):
     paginator = CustomModelAdminPaginator
-    list_display = ("is_valid", "is_active", "capacity", "used_slots")
+    list_display = ("id", "is_valid", "is_active", "capacity", "used_slots")
     list_filter = ("is_valid", "is_active")
 
     def save_model(self, request, obj, form, change):
-        proxy = obj.proxy.strip()
+        proxy_changed = "proxy" in form.changed_data
+        if proxy_changed:
+            print("validating proxy...")
+            proxy = obj.proxy.strip()
 
-        if not _proxy_svc.is_valid_proxy_format(proxy):
-            raise ValidationError("❌ Invalid proxy format! Example: http://127.0.0.1:8080")
+            if not _proxy_svc.is_valid_proxy_format(proxy):
+                raise ValidationError("Invalid proxy format! Example: http://127.0.0.1:8080")
 
-        success, error = _proxy_svc.ping_proxy(proxy)
-        if not success:
-            raise ValidationError(f"❌ Proxy test failed: {error}")
+            success, error = _proxy_svc.ping_proxy(proxy)
+            if not success:
+                raise ValidationError(f"Proxy test failed: {error}")
 
         super().save_model(request, obj, form, change)
-
-        messages.success(request, f"✅ Proxy {proxy} validated and saved successfully.")
+        if proxy_changed:
+            messages.success(request, f"Proxy {obj.proxy} is valid.")

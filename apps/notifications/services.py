@@ -43,7 +43,7 @@ class NotificationService:
             try:
                 response = messaging.send(message)
                 device.last_notified_at = timezone.now()
-                device.save(update_fields=["last_notified_at"])
+                device.save(update_fields=("last_notified_at",))
                 logger.log_event(
                     op,
                     log_data="sent notification."

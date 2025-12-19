@@ -21,8 +21,8 @@ class ProfileConfig:
 
     def create_analyze_growth_logs_periodic_task(self, account_id: int):
         schedule, created = IntervalSchedule.objects.get_or_create(
-            every=1,
-            period=IntervalSchedule.DAYS,
+            every=10,
+            period=IntervalSchedule.MINUTES,
         )
         task_name_ = self.growth_data_task.format(account_id=account_id)
         if not PeriodicTask.objects.filter(name=task_name_).exists():

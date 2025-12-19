@@ -87,7 +87,7 @@ class InstagrapiClient(InstagramBaseClient):
 
     @property
     def get_user_id(self):
-        return self.client.user_id
+        return str(self.client.user_id)
 
     @classmethod
     def get_account_client(cls, settings, proxy):
@@ -103,7 +103,7 @@ class InstagrapiClient(InstagramBaseClient):
         self.client.set_proxy(proxy)
 
     def load_profile(self, account, **kwargs):
-        data = self.client.user_info(str(account.client_pk), use_cache=False).model_dump()
+        data = self.client.user_info(self.get_user_id, use_cache=False).model_dump()
         return self._clean_profile_object(data, account.pk)
 
     def load_followers_in_chunk(self, account, **kwargs):
@@ -111,9 +111,12 @@ class InstagrapiClient(InstagramBaseClient):
         max_amount = 20
         buffer = []
         while True:
+            self._do_sleep()
             users, max_id = self.client.user_followers_v1_chunk(
-                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
+                user_id=self.get_user_id, max_amount=max_amount, max_id=max_id
             )
+            print(f"Following requests count {self.client.private_requests_count}")
+            self._normalize_requests(users, self.client)
             for user in users:
                 buffer.append(self._clean_user_object(user))
                 if len(buffer) >= self.batch_size:
@@ -130,9 +133,12 @@ class InstagrapiClient(InstagramBaseClient):
         max_amount = 20
         buffer = []
         while True:
+            self._do_sleep()
             users, max_id = self.client.user_following_v1_chunk(
-                user_id=str(account.client_pk), max_amount=max_amount, max_id=max_id
+                user_id=self.get_user_id, max_amount=max_amount, max_id=max_id
             )
+            print(f"Following requests count {self.client.private_requests_count}")
+            self._normalize_requests(users, self.client)
             for user in users:
                 buffer.append(self._clean_user_object(user))
                 if len(buffer) >= self.batch_size:
@@ -177,15 +183,19 @@ class InstagrapiClient(InstagramBaseClient):
                         self.client.get_timeline_feed()
                         _logger.log_event(op, log_data="User instagram session is valid.")
                     except (ProxyError, HTTPError, GenericRequestError, ClientConnectionError) as err:
+                        err_cls = err.__class__.__name__
                         _logger.log_event(op,
-                                          f"Connection error, retries :{retries}/{max_retries} -->{str(err)}")
+                                          f"{err_cls} error: {str(err)}, retries :{retries}/{max_retries}.")
                         if retries == max_retries:
                             _logger.log_event(op, f"attempt {retries}/{max_retries}: {proxy} is not working...")
                             raise ProxyError(f"{proxy} is not working!")
 
                     except Exception as err:
-                        _logger.log_event(op, log_data=f"User instagram session is not valid --> {err}",
-                                          level="ERROR")
+                        err_cls = err.__class__.__name__
+                        _logger.log_event(
+                            op, log_data=f"User instagram session is not valid, {err_cls} error: {err}",
+                            level="ERROR"
+                        )
                         self.client.set_settings({})  # remove invalid settings
                         settings = decrypt_client_settings(account.client_settings)
                         self.client.set_device(device=settings["device_settings"])

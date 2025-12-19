@@ -1,4 +1,6 @@
 import re
+import time
+import random
 from abc import ABC, abstractmethod
 
 from apps.enums import UrlTypeEnum
@@ -25,6 +27,22 @@ class InstagramBaseClient(ABC):
             "full_name": user.full_name,
             "profile_pic_url": str(user.profile_pic_url),
         }
+
+    @staticmethod
+    def _do_sleep(start_time=6, end_time=20):
+        sleep_time = random.uniform(start_time, end_time)
+        print(f"Sleeping for {sleep_time}")
+        time.sleep(sleep_time)
+
+    def _normalize_requests(self, users, client):
+        if random.choice([True, False, False]):
+            print("Normalizing requests..")
+            check_profile_count = random.randint(1, 3)
+            random_users_to_check_profile = random.sample(users, check_profile_count)
+            for user in random_users_to_check_profile:
+                self._do_sleep()
+                client.user_info(str(user.user_id), use_cache=False)
+            print("Requests normalized.")
 
     @staticmethod
     def _clean_profile_object(data, account_pk):

@@ -54,9 +54,9 @@ class ProxyService:
 
                 proxy_str, err = self.ping_proxy(proxy.proxy)
                 if proxy_str:
-                    return proxy_str, err
+                    return proxy, err
                 proxy.is_valid = False
                 proxy.is_active = False
-                proxy.save()
+                proxy.save(update_fields=("is_valid", "is_active"))
 
         return False, err

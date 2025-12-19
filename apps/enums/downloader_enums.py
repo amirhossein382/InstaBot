@@ -9,7 +9,7 @@ class UrlTypeEnum:
     ALL_TOPICS = (POST, STORY, UNKNOWN)
     CHOICES = (
         (POST, _("Post")),
-        STORY, _("Story"),
+        (STORY, _("Story")),
         (UNKNOWN, _("Unknown")),
     )
 
@@ -24,5 +24,5 @@ class MediasTypeEnum:
     CHOICES = (
         (REEL_OR_POST, _("Reel or Post")),
         (ALBUM, _("Album")),
-        STORY, _("Story"),
+        (STORY, _("Story")),
     )
