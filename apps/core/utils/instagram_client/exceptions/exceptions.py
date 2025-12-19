@@ -81,6 +81,11 @@ class InstagramAccountNotFound(InstagramError):
     default_message = "We can't find an account with entered username. Try another phone number or email, or if you don't have an Instagram account, you can sign up"
 
 
+class InstagramUnknownError(InstagramError):
+    status_code = 400
+    default_message = "There was an unknown error from instagram."
+
+
 def exception_mapper(exception: Exception):
     if isinstance(exception, BadPassword):
         raise InstagramInvalidCredentials(str(exception))
@@ -103,7 +108,7 @@ def exception_mapper(exception: Exception):
         raise InstagramMediaNotFound()
     elif isinstance(exception, UnknownMediaUrlType):
         raise InstagramUnknownMediaUrlType()
+    elif isinstance(exception, UnknownError):
+        raise InstagramUnknownError(str(exception))
     else:
-        if "We can't find an account" in str(exception):
-            raise InstagramAccountNotFound(str(exception))
         raise
