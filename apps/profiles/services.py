@@ -1,7 +1,6 @@
 import json
 import random
 
-from django.utils import timezone
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from apps.enums import FollowerChangeStatusEnum
@@ -12,48 +11,18 @@ from ..core.utils.instagram_client.exceptions import exception_mapper
 
 
 class ProfileConfig:
-    update_follow_task = "analyze_follow_data_user_{account_id}"
-    growth_data_task = "analyze_account_growth_logs_{account_id}"
+    update_follow_task_name = "analyze_follow_data_user_{account_id}"
 
     @staticmethod
     def extract_account_id(task_name: str) -> int | None:
         return int(task_name.split("_")[-1])
-
-    def create_analyze_growth_logs_periodic_task(self, account_id: int):
-        schedule, created = IntervalSchedule.objects.get_or_create(
-            every=10,
-            period=IntervalSchedule.MINUTES,
-        )
-        task_name_ = self.growth_data_task.format(account_id=account_id)
-        if not PeriodicTask.objects.filter(name=task_name_).exists():
-            PeriodicTask.objects.create(
-                interval=schedule,
-                name=task_name_,
-                task="apps.profiles.tasks.analyze_account_growth_logs",
-                args=json.dumps([account_id]),
-                enabled=True,
-                one_off=False,
-                start_time=timezone.now()
-            )
-
-    def pause_or_resume_analyze_growth_logs_periodic_task(self, account_id: int, pause: bool):
-        try:
-            task = PeriodicTask.objects.get(name=self.growth_data_task.format(account_id=account_id))
-        except PeriodicTask.DoesNotExist:
-            pass
-        else:
-            if pause:
-                task.enabled = False
-            else:
-                task.enabled = True
-            task.save()
 
     def create_analyze_update_follow_data_periodic_task(self, account_id: int):
         schedule, created = IntervalSchedule.objects.get_or_create(
             every=10,
             period=IntervalSchedule.MINUTES,
         )
-        task_name_ = self.update_follow_task.format(account_id=account_id)
+        task_name_ = self.update_follow_task_name.format(account_id=account_id)
         if not PeriodicTask.objects.filter(name=task_name_).exists():
             PeriodicTask.objects.create(
                 interval=schedule,
@@ -66,7 +35,7 @@ class ProfileConfig:
 
     def pause_or_resume_analyze_update_follow_data_periodic_task(self, account_id: int, pause: bool):
         try:
-            task = PeriodicTask.objects.get(name=self.update_follow_task.format(account_id=account_id))
+            task = PeriodicTask.objects.get(name=self.update_follow_task_name.format(account_id=account_id))
         except PeriodicTask.DoesNotExist:
             pass
         else:
@@ -78,7 +47,7 @@ class ProfileConfig:
 
     def reschedule_analyze_update_follow_data_periodic_task(self, account_id: int):
         try:
-            task = PeriodicTask.objects.get(name=self.update_follow_task.format(account_id=account_id))
+            task = PeriodicTask.objects.get(name=self.update_follow_task_name.format(account_id=account_id))
         except PeriodicTask.DoesNotExist:
             pass
         else:
