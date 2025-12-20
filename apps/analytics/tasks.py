@@ -16,3 +16,12 @@ def analyze_daily_follower_growth_logs(account_id):
     account = InstagramAccount.objects.prefetch_related("profile").get(pk=account_id)
     _analytics_svc.calculate_daily_growth_logs(account)
     _logger.log_event(op, "task done!.")
+
+
+@shared_task
+def analyze_user_top_posts(account_id):
+    op = analyze_user_top_posts.__name__
+    _logger.log_event(op, "task is running...")
+    account = InstagramAccount.objects.prefetch_related("profile").get(pk=account_id)
+    _analytics_svc.calculate_top_posts(account)
+    _logger.log_event(op, "task done.")

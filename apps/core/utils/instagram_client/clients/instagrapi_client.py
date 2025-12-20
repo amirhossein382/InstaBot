@@ -71,6 +71,13 @@ class _InstagrapiConfig:
         story_info = client.story_info_v1(story_pk)
         return self.extract_url_from_story(story_info)
 
+    @staticmethod
+    def extract_hashtags(caption: str) -> list:
+        import re
+        if not caption:
+            return []
+        return re.findall(r"#\w+", caption)
+
 
 class InstagrapiClient(InstagramBaseClient):
     config = _InstagrapiConfig()
@@ -160,7 +167,7 @@ class InstagrapiClient(InstagramBaseClient):
             case _:
                 raise UnknownMediaUrlType()
 
-    def get_top_posts(self, top_post_count=5) -> list:
+    def get_top_posts(self, top_post_count=5) -> list[dict]:
         end_cursor = None
         top_posts = []
         page_size = 5
@@ -190,7 +197,18 @@ class InstagrapiClient(InstagramBaseClient):
             if not end_cursor:
                 break
 
-        return [m for _, m in top_posts]
+        return [
+            {
+                "media_url": getattr(m, "video_url", None) or getattr(m, "thumbnail_url", None) or "",
+                "media_urls": [
+                    resource.video_url or resource.thumbnail_url
+                    for resource in getattr(m, "resources", None)
+                ],
+                "post_type": getattr(m, "media_type"), "view_count": getattr(m, "view_count", 0),
+                "like_count": getattr(m, "like_count", 0), "caption": getattr(m, "caption_text", ""),
+                "comment_count": getattr(m, "comment_count", 0), "taken_at": getattr(m, "taken_at"),
+                "hashtags": self.config.extract_hashtags(getattr(m, "caption_text", ""))
+            } for _, m in top_posts]
 
     def login(self, username: str, password: str, proxy: str, **kwargs):
         op = self.op + ".login"

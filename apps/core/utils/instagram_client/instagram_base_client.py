@@ -113,8 +113,16 @@ class InstagramBaseClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_top_posts(self, top_post_count=5) -> list:
-        """Get top posts"""
+    def get_top_posts(self, top_post_count=5) -> list[dict]:
+        """
+        Get top posts
+        Return:
+            list[dict]: [
+            {"media_url":"url"or"", "media_urls":"urls"or"", "post_type":1,
+            "view_count":5, "like_count":5,"comment_count":35, "taken_at":85452.2598,
+            "caption" :"some caption", "hashtags":["some hashtag",...]}, ...
+            ]
+        """
         raise NotImplementedError
 
     @abstractmethod
