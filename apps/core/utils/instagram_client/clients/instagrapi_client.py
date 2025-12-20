@@ -160,6 +160,38 @@ class InstagrapiClient(InstagramBaseClient):
             case _:
                 raise UnknownMediaUrlType()
 
+    def get_top_posts(self, top_post_count=5) -> list:
+        end_cursor = None
+        top_posts = []
+        page_size = 5
+
+        while True:
+            medias, end_cursor = self.client.user_medias_paginated(
+                self.get_user_id,
+                amount=page_size,
+                end_cursor=end_cursor
+            )
+
+            if not medias:
+                break
+
+            for media in medias:
+                score = media.view_count + (media.like_count or 0) + (media.comment_count or 0)
+
+                if len(top_posts) < top_post_count:
+                    top_posts.append((score, media))
+                    top_posts.sort(reverse=True, key=lambda x: x[0])
+
+                else:
+                    if score > top_posts[-1][0]:
+                        top_posts[-1] = (score, media)
+                        top_posts.sort(reverse=True, key=lambda x: x[0])
+
+            if not end_cursor:
+                break
+
+        return [m for _, m in top_posts]
+
     def login(self, username: str, password: str, proxy: str, **kwargs):
         op = self.op + ".login"
         device = kwargs.get("device")

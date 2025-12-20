@@ -113,6 +113,11 @@ class InstagramBaseClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_top_posts(self, top_post_count=5) -> list:
+        """Get top posts"""
+        raise NotImplementedError
+
+    @abstractmethod
     def login(self, username: str, password: str, proxy: str, **kwargs):
         """Login user to instagram"""
         raise NotImplementedError
