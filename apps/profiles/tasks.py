@@ -1,6 +1,6 @@
 from django.db.models import Q
 from django.db import transaction
-from django.utils.timezone import datetime, now, timedelta
+from django.utils.timezone import now, timedelta
 from celery import shared_task, exceptions as celery_exceptions
 
 from apps.account.models import InstagramAccount
@@ -14,7 +14,7 @@ from apps.core.utils.instagram_client.exceptions import (
 )
 from apps.enums import FollowerChangeStatusEnum, NotificationsTypeEnum
 from apps.proxy.services import ProxyService
-from .models import Follower, Following, FollowerChange, Profile, AccountGrowthLog
+from .models import Follower, Following, FollowerChange, Profile
 from .serializers import ProfileSerializer
 from .services import ProfileService
 from ..core.tasks import BaseRetryTask
@@ -328,21 +328,3 @@ def analyze_and_update_follow_data(self, account_id):
         _logger.log_event(
             op, f"Rescheduling follow data task to every {next_run_time} hours..."
         )
-
-
-@shared_task
-def analyze_account_growth_logs(account_id):
-    op = analyze_account_growth_logs.__name__
-    _logger.log_event(op, "task is running...")
-    account = InstagramAccount.objects.prefetch_related("profile").get(pk=account_id)
-
-    today = datetime.today()
-    _logger.log_event(op, "update or create growth logs...")
-    AccountGrowthLog.objects.update_or_create(
-        account=account,
-        date=today,
-        defaults={
-            'followers_count': account.profile.follower_count,
-        }
-    )
-    _logger.log_event(op, "update or create growth logs done!")

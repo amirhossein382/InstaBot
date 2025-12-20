@@ -23,4 +23,5 @@ urlpatterns = [
     path("api/<version>/profiles/", include("apps.profiles.urls"), name="profiles"),
     path("api/<version>/notifications/", include("apps.notifications.urls"), name="notifications"),
     path("api/<version>/downloader/", include("apps.downloader.urls"), name="downloader"),
+    path("api/<version>/analytics/", include("apps.analytics.urls"), name="analytics"),
 ]
