@@ -71,13 +71,6 @@ class _InstagrapiConfig:
         story_info = client.story_info_v1(story_pk)
         return self.extract_url_from_story(story_info)
 
-    @staticmethod
-    def extract_hashtags(caption: str) -> list:
-        import re
-        if not caption:
-            return []
-        return re.findall(r"#\w+", caption)
-
 
 class InstagrapiClient(InstagramBaseClient):
     config = _InstagrapiConfig()
@@ -184,49 +177,6 @@ class InstagrapiClient(InstagramBaseClient):
             yield cleaned_medias
             if not end_cursor:
                 break
-
-    def get_top_posts(self, top_post_count=5) -> list[dict]:
-        end_cursor = None
-        top_posts = []
-        page_size = 5
-
-        while True:
-            medias, end_cursor = self.client.user_medias_paginated(
-                self.get_user_id,
-                amount=page_size,
-                end_cursor=end_cursor
-            )
-
-            if not medias:
-                break
-
-            for media in medias:
-                score = media.view_count + (media.like_count or 0) + (media.comment_count or 0)
-
-                if len(top_posts) < top_post_count:
-                    top_posts.append((score, media))
-                    top_posts.sort(reverse=True, key=lambda x: x[0])
-
-                else:
-                    if score > top_posts[-1][0]:
-                        top_posts[-1] = (score, media)
-                        top_posts.sort(reverse=True, key=lambda x: x[0])
-
-            if not end_cursor:
-                break
-
-        return [
-            {
-                "media_url": getattr(m, "video_url", None) or getattr(m, "thumbnail_url", None) or "",
-                "media_urls": [
-                    resource.video_url or resource.thumbnail_url
-                    for resource in getattr(m, "resources", None)
-                ],
-                "post_type": getattr(m, "media_type"), "view_count": getattr(m, "view_count", 0),
-                "like_count": getattr(m, "like_count", 0), "caption": getattr(m, "caption_text", ""),
-                "comment_count": getattr(m, "comment_count", 0), "taken_at": getattr(m, "taken_at"),
-                "hashtags": self.config.extract_hashtags(getattr(m, "caption_text", ""))
-            } for _, m in top_posts]
 
     def login(self, username: str, password: str, proxy: str, **kwargs):
         op = self.op + ".login"
