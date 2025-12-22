@@ -131,6 +131,8 @@ class AccountInitialAPIView(APIView):
             with transaction.atomic():
                 _logger.log_event(self.__class__.__name__, log_data="fetching profile..")
                 profile_svc.fetch_profile_info(account, client)
+                _logger.log_event(self.__class__.__name__, log_data="fetching posts..")
+                profile_svc.fetch_medias(account, client)
                 _logger.log_event(self.__class__.__name__, log_data="fetching followers..")
                 profile_svc.fetch_followers(account, client)
                 _logger.log_event(self.__class__.__name__, log_data="fetching followings..")
