@@ -6,7 +6,7 @@ from django_celery_beat.models import IntervalSchedule, PeriodicTask
 from apps.enums import FollowerChangeStatusEnum
 from apps.core.utils.instagram_client import InstagramBaseClient
 from .serializers import ProfileSerializer
-from .models import FollowerChange, Follower, Following
+from .models import FollowerChange, Follower, Following, Post
 from ..core.utils.instagram_client.exceptions import exception_mapper
 
 
@@ -88,6 +88,14 @@ class ProfileService:
         except Exception as exc:
             exception_mapper(exc)
 
+    @staticmethod
+    def load_user_posts(account, client: InstagramBaseClient):
+        try:
+            for medias in client.get_user_posts_in_chunk():
+                yield medias
+        except Exception as exc:
+            exception_mapper(exc)
+
     def fetch_profile_info(self, account, client: InstagramBaseClient) -> None:
         profile_info = self.load_profile_info(account, client)
         serializer = ProfileSerializer(data=profile_info)
@@ -103,6 +111,11 @@ class ProfileService:
         for chunk in self.load_followings(account, client):
             objs = [Following(account=account, **item) for item in chunk]
             Following.objects.bulk_create(objs, batch_size=self.batch_size)
+
+    def fetch_medias(self, account, client: InstagramBaseClient) -> None:
+        for chunk in self.load_user_posts(account, client):
+            objs = [Post(account=account, **item) for item in chunk]
+            Post.objects.bulk_create(objs, batch_size=self.batch_size)
 
     def analyze_follower_changes(self, account) -> None:
         followers = Follower.objects.filter(account=account).values(
