@@ -1,8 +1,8 @@
 from django.db import models
 
 from apps.account.models import InstagramAccount
-from apps.core.models import BaseInstagramUser
-from apps.enums import FollowerChangeStatusEnum
+from apps.core.models import BaseInstagramUser, BaseTimeStampedModel
+from apps.enums import FollowerChangeStatusEnum, PostTypeEnum
 
 
 class Profile(BaseInstagramUser):
@@ -45,3 +45,15 @@ class FollowerChange(BaseInstagramUser):
     class Meta:
         unique_together = (["account", "user_pk", "change_type"])
         ordering = ['-created_at']
+
+
+class Post(BaseTimeStampedModel):
+    account = models.ForeignKey(InstagramAccount, on_delete=models.CASCADE, related_name="posts")
+    media_type = models.PositiveSmallIntegerField(choices=PostTypeEnum.CHOICES)
+    media_url = models.URLField(null=True, blank=True)
+    media_resources = models.JSONField(null=True, blank=True, default=list)
+    caption = models.TextField(blank=True)
+    taken_at = models.DateTimeField()
+    like_count = models.IntegerField(default=0)
+    comment_count = models.IntegerField(default=0)
+    view_count = models.IntegerField(default=0)
