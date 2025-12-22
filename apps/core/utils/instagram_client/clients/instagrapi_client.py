@@ -167,6 +167,24 @@ class InstagrapiClient(InstagramBaseClient):
             case _:
                 raise UnknownMediaUrlType()
 
+    def get_user_posts_in_chunk(self):
+        end_cursor = None
+        page_size = 12
+
+        while True:
+            medias, end_cursor = self.client.user_medias_paginated(
+                self.get_user_id,
+                amount=page_size,
+                end_cursor=end_cursor
+            )
+
+            if not medias:
+                break
+
+            yield medias
+            if not end_cursor:
+                break
+
     def get_top_posts(self, top_post_count=5) -> list[dict]:
         end_cursor = None
         top_posts = []

@@ -113,6 +113,13 @@ class InstagramBaseClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_user_posts_in_chunk(self):
+        """
+        Get user posts in chunk
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def get_top_posts(self, top_post_count=5) -> list[dict]:
         """
         Get top posts
