@@ -29,6 +29,26 @@ class InstagramBaseClient(ABC):
         }
 
     @staticmethod
+    def _clean_profile_object(data, account_pk):
+        data["account"] = account_pk
+        data["user_pk"] = int(data["pk"])
+        data["profile_pic_url"] = str(data["profile_pic_url"])
+        return data
+
+    @staticmethod
+    def _clean_media_object(media):
+        return {
+            "media_type": getattr(media, "media_type"),
+            "media_url": getattr(media, "video_url") or getattr(media, "thumbnail_url"),
+            "media_resources": getattr(media, "resources"),
+            "caption": getattr(media, "caption_text"),
+            "taken_at": getattr(media, "taken_at"),
+            "like_count": getattr(media, "like_count"),
+            "comment_count": getattr(media, "comment_count"),
+            "view_count": getattr(media, "view_count"),
+        }
+
+    @staticmethod
     def _do_sleep(start_time=6, end_time=20):
         sleep_time = random.uniform(start_time, end_time)
         print(f"Sleeping for {sleep_time}")
@@ -43,13 +63,6 @@ class InstagramBaseClient(ABC):
                 self._do_sleep()
                 client.user_info(str(user.user_id), use_cache=False)
             print("Requests normalized.")
-
-    @staticmethod
-    def _clean_profile_object(data, account_pk):
-        data["account"] = account_pk
-        data["user_pk"] = int(data["pk"])
-        data["profile_pic_url"] = str(data["profile_pic_url"])
-        return data
 
     @abstractmethod
     def __init__(self, settings: dict = None, proxy: str = None):

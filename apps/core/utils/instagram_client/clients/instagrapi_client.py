@@ -177,11 +177,11 @@ class InstagrapiClient(InstagramBaseClient):
                 amount=page_size,
                 end_cursor=end_cursor
             )
-
             if not medias:
                 break
+            cleaned_medias = [self._clean_media_object(media) for media in medias]
 
-            yield medias
+            yield cleaned_medias
             if not end_cursor:
                 break
 
