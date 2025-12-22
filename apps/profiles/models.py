@@ -45,15 +45,3 @@ class FollowerChange(BaseInstagramUser):
     class Meta:
         unique_together = (["account", "user_pk", "change_type"])
         ordering = ['-created_at']
-
-
-class AccountGrowthLog(models.Model):
-    account = models.ForeignKey(InstagramAccount, on_delete=models.CASCADE, related_name="growth_logs")
-    date = models.DateField()
-    followers_count = models.IntegerField()
-
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('account', 'date')
-        ordering = ['-date']

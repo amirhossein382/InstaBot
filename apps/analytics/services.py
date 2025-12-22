@@ -1,5 +1,7 @@
 import json
+from datetime import timedelta
 
+from django.db.models import Count, Q
 from django.utils.timezone import datetime
 from django.utils import timezone
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
@@ -7,6 +9,8 @@ from django_celery_beat.models import IntervalSchedule, PeriodicTask
 from apps.core.utils.instagram_client import get_instagram_account_client
 from apps.core.utils.instagram_client.exceptions import exception_mapper
 from .models import DailyFollowerGrowthLog, TopPosts
+from ..enums import FollowerChangeStatusEnum
+from ..profiles.models import FollowerChange
 
 
 class AnalyticsConfig:
@@ -118,3 +122,25 @@ class AnalyticsService:
                     account=account, media_type=post_type, media_url=media_url, media_urls=media_urls,
                     caption=caption, taken_at=taken_at, view_count=view_count, like_count=like_count,
                     comment_count=comment_count, hashtags=hashtags, engagement_rate=engagement_rate)
+
+    @staticmethod
+    def get_follower_summary(account, days=7):
+        start = timezone.now() - timedelta(days=days)
+
+        qs = FollowerChange.objects.filter(
+            Q(account=account) & Q(created_at__gte=start) &
+            Q(change_type=FollowerChangeStatusEnum.NEW_FOLLOW) | Q(change_type=FollowerChangeStatusEnum.UNFOLLOW),
+        ).values("change_type").annotate(count=Count("id"))
+
+        result = {
+            "new_followers": 0,
+            "lost_followers": 0,
+        }
+
+        for row in qs:
+            if row["change_type"] == FollowerChangeStatusEnum.NEW_FOLLOW:
+                result["new_followers"] = row["count"]
+            else:
+                result["lost_followers"] = row["count"]
+
+        return result

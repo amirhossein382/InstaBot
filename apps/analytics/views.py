@@ -2,9 +2,12 @@ from rest_framework import views, status
 from rest_framework.response import Response
 
 from apps.account.models import InstagramAccount
+from ..account.exceptions import base_response_with_error
 from .serializers import DailyFollowerGrowthLogSerializer
 from .models import DailyFollowerGrowthLog
-from ..account.exceptions import base_response_with_error
+from .services import AnalyticsService
+
+_analytics_svc = AnalyticsService()
 
 
 class DailyFollowerGrowthLogAPIView(views.APIView):
@@ -22,3 +25,19 @@ class DailyFollowerGrowthLogAPIView(views.APIView):
 
         serializer = DailyFollowerGrowthLogSerializer(logs, many=True)
         return Response(serializer.data)
+
+
+class FollowerSummaryAPIView(views.APIView):
+
+    def get(self, request, *args, **kwargs):
+        account = request.user.instagram_account
+        days = int(request.query_params.get("days", 7))
+
+        data = _analytics_svc.get_follower_summary(account, days)
+
+        return Response({
+            "range": f"last_{days}_days",
+            "new_followers": data["new_followers"],
+            "lost_followers": data["lost_followers"],
+            "net_growth": data["new_followers"] - data["lost_followers"],
+        })
