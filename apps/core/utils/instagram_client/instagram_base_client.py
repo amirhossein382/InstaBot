@@ -38,6 +38,7 @@ class InstagramBaseClient(ABC):
     @staticmethod
     def _clean_media_object(media):
         return {
+            "media_pk": getattr(media, "pk"),
             "media_type": getattr(media, "media_type"),
             "media_url": getattr(media, "video_url") or getattr(media, "thumbnail_url"),
             "media_resources": getattr(media, "resources"),

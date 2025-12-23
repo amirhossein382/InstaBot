@@ -26,7 +26,7 @@ class Follower(BaseInstagramUser):
     user_pk = models.BigIntegerField(db_index=True)
 
     class Meta:
-        unique_together = (['account', 'user_pk'])
+        unique_together = (('account', 'user_pk'),)
 
 
 class Following(BaseInstagramUser):
@@ -34,7 +34,7 @@ class Following(BaseInstagramUser):
     user_pk = models.BigIntegerField(db_index=True)
 
     class Meta:
-        unique_together = (['account', 'user_pk'])
+        unique_together = (('account', 'user_pk'),)
 
 
 class FollowerChange(BaseInstagramUser):
@@ -43,12 +43,13 @@ class FollowerChange(BaseInstagramUser):
     change_type = models.CharField(max_length=20, choices=FollowerChangeStatusEnum.CHOICES)
 
     class Meta:
-        unique_together = (["account", "user_pk", "change_type"])
-        ordering = ['-created_at']
+        unique_together = (("account", "user_pk", "change_type"),)
+        ordering = ('-created_at',)
 
 
 class Post(BaseTimeStampedModel):
     account = models.ForeignKey(InstagramAccount, on_delete=models.CASCADE, related_name="posts")
+    media_pk = models.BigIntegerField(db_index=True)
     media_type = models.PositiveSmallIntegerField(choices=PostTypeEnum.CHOICES)
     media_url = models.URLField(null=True, blank=True)
     media_resources = models.JSONField(null=True, blank=True, default=list)
@@ -57,3 +58,7 @@ class Post(BaseTimeStampedModel):
     like_count = models.IntegerField(default=0)
     comment_count = models.IntegerField(default=0)
     view_count = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = (("account", "media_pk"),)
+        ordering = ('-created_at',)
