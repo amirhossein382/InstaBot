@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from apps.enums import FollowerChangeStatusEnum
-from .models import Profile, Follower, Following, FollowerChange
+from .models import Profile, Follower, Following, FollowerChange, Post
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -43,4 +43,10 @@ class FollowingSerializer(serializers.ModelSerializer):
 class FollowerChangeSerializer(serializers.ModelSerializer):
     class Meta:
         model = FollowerChange
+        fields = '__all__'
+
+
+class PostSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Post
         fields = '__all__'
