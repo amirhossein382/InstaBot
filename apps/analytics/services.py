@@ -2,13 +2,14 @@ import json
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Count, Q, ExpressionWrapper, F, FloatField
+from django.db.models import Count, Q, ExpressionWrapper, F, FloatField, Avg
+from django.db.models.functions import ExtractWeekDay, ExtractHour
 from django.utils.timezone import datetime
 from django.utils import timezone
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from apps.profiles.models import Post
-from .models import DailyFollowerGrowthLog, TopPosts
+from .models import DailyFollowerGrowthLog, TopPosts, BestTimeStats
 from ..enums import FollowerChangeStatusEnum
 from ..profiles.models import FollowerChange
 
@@ -100,7 +101,7 @@ class AnalyticsService:
         )
 
     @staticmethod
-    def _calculate_top_posts(account, limit=5, days=90):
+    def _calculate_top_posts(account, limit=None, days=90):
         since = timezone.now() - timedelta(days=days)
 
         qs = (
@@ -116,11 +117,21 @@ class AnalyticsService:
             )
             .order_by("-score")
         )
+        if limit is not None:
+            return qs[:limit]
+        return qs
 
-        return qs[:limit]
+    def _calculate_best_time_to_post(self, account):
+        qs = self._calculate_top_posts(account, limit=None)
+        qs.annotate(
+            weekday=ExtractWeekDay("taken_at"), hour=ExtractHour("taken_at"),
+        ).values("weekday", "hour").annotate(
+            avg_score=Avg("score"), posts_count=Count("id")
+        )
+        return qs
 
     def fetch_top_posts(self, account):
-        top_posts = self._calculate_top_posts(account)
+        top_posts = self._calculate_top_posts(account, limit=5)
         with transaction.atomic():
             TopPosts.objects.filter(account=account).delete()
             TopPosts.objects.bulk_create([
@@ -130,6 +141,21 @@ class AnalyticsService:
                     score=post.score,
                 )
                 for post in top_posts
+            ])
+
+    def fetch_best_time_to_post(self, account):
+        best_time_to_posts = self._calculate_best_time_to_post(account)
+        with transaction.atomic():
+            BestTimeStats.objects.filter(account=account).delete()
+            BestTimeStats.objects.bulk_create([
+                BestTimeStats(
+                    account=account,
+                    weekday=row.weekday,
+                    hour=row.hour,
+                    avg_score=row.avg_score,
+                    posts_count=row.posts_count,
+                )
+                for row in best_time_to_posts
             ])
 
     @staticmethod
