@@ -53,8 +53,9 @@ class AnalyticsConfig:
                 task.enabled = True
             task.save(update_fields=("enabled",))
 
-    def create_top_posts_periodic_task(self, account_id: int, schedule):
+    def create_top_posts_periodic_task(self, account_id: int):
         task_name_ = self.top_3_posts_task_name.format(account_id=account_id)
+        schedule = self._create_schedule()
         if not PeriodicTask.objects.filter(name=task_name_).exists():
             PeriodicTask.objects.create(
                 interval=schedule,
