@@ -1,13 +1,13 @@
 import json
 from datetime import timedelta
 
-from django.db.models import Count, Q
+from django.db import transaction
+from django.db.models import Count, Q, ExpressionWrapper, F, FloatField
 from django.utils.timezone import datetime
 from django.utils import timezone
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
-from apps.core.utils.instagram_client import get_instagram_account_client
-from apps.core.utils.instagram_client.exceptions import exception_mapper
+from apps.profiles.models import Post
 from .models import DailyFollowerGrowthLog, TopPosts
 from ..enums import FollowerChangeStatusEnum
 from ..profiles.models import FollowerChange
@@ -99,29 +99,37 @@ class AnalyticsService:
         )
 
     @staticmethod
-    def calculate_top_posts(account):
-        client = get_instagram_account_client(account.client_settings, account.internal_proxy)
-        try:
-            top_posts = client.get_top_posts()
-        except Exception as exc:
-            exception_mapper(exc)
-        else:
-            followers_count = account.profile.follower_count
-            for post in top_posts:
-                media_url = post.get("media_url")
-                media_urls = post.get("media_urls")
-                post_type = post.get("post_type")
-                view_count = post.get("view_count")
-                like_count = post.get("like_count")
-                comment_count = post.get("comment_count")
-                taken_at = post.get("taken_at")
-                caption = post.get("caption")
-                hashtags = post.get("hashtags")
-                engagement_rate = (like_count + comment_count) / followers_count
-                TopPosts.objects.update_or_create(
-                    account=account, media_type=post_type, media_url=media_url, media_urls=media_urls,
-                    caption=caption, taken_at=taken_at, view_count=view_count, like_count=like_count,
-                    comment_count=comment_count, hashtags=hashtags, engagement_rate=engagement_rate)
+    def _calculate_top_posts(account, limit=5, days=90):
+        since = timezone.now() - timedelta(days=days)
+
+        qs = (
+            Post.objects
+            .filter(account=account, taken_at__gte=since)
+            .annotate(
+                score=ExpressionWrapper(
+                    F("like_count") +
+                    F("comment_count") * 2 +
+                    F("view_count") * 0.5,
+                    output_field=FloatField()
+                )
+            )
+            .order_by("-score")
+        )
+
+        return qs[:limit]
+
+    def fetch_top_posts(self, account):
+        top_posts = self._calculate_top_posts(account)
+        with transaction.atomic():
+            TopPosts.objects.filter(account=account).delete()
+            TopPosts.objects.bulk_create([
+                TopPosts(
+                    account=account,
+                    post=post,
+                    score=post.score,
+                )
+                for post in top_posts
+            ])
 
     @staticmethod
     def get_follower_summary(account, days=7):
