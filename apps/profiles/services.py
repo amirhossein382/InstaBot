@@ -5,37 +5,36 @@ from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
 from apps.enums import FollowerChangeStatusEnum
 from apps.core.utils.instagram_client import InstagramBaseClient
-from .serializers import ProfileSerializer
-from .models import FollowerChange, Follower, Following, Post
+from .models import FollowerChange, Follower, Following, Post, Profile
 from ..core.utils.instagram_client.exceptions import exception_mapper
 
 
 class ProfileConfig:
-    update_follow_task_name = "analyze_follow_data_user_{account_id}"
+    update_profile_task_name = "update_profile_info_{account_id}"
 
     @staticmethod
     def extract_account_id(task_name: str) -> int | None:
         return int(task_name.split("_")[-1])
 
-    def create_analyze_update_follow_data_periodic_task(self, account_id: int):
+    def create_update_profile_info_periodic_task(self, account_id: int):
         schedule, created = IntervalSchedule.objects.get_or_create(
             every=10,
             period=IntervalSchedule.MINUTES,
         )
-        task_name_ = self.update_follow_task_name.format(account_id=account_id)
+        task_name_ = self.update_profile_task_name.format(account_id=account_id)
         if not PeriodicTask.objects.filter(name=task_name_).exists():
             PeriodicTask.objects.create(
                 interval=schedule,
                 name=task_name_,
-                task="apps.profiles.tasks.analyze_and_update_follow_data",
-                args=json.dumps([account_id]),
+                task="apps.profiles.tasks.update_profile_info",
+                args=json.dumps((account_id,)),
                 one_off=False,
                 enabled=True,
             )
 
-    def pause_or_resume_analyze_update_follow_data_periodic_task(self, account_id: int, pause: bool):
+    def pause_or_resume_update_profile_info_periodic_task(self, account_id: int, pause: bool):
         try:
-            task = PeriodicTask.objects.get(name=self.update_follow_task_name.format(account_id=account_id))
+            task = PeriodicTask.objects.get(name=self.update_profile_task_name.format(account_id=account_id))
         except PeriodicTask.DoesNotExist:
             pass
         else:
@@ -45,9 +44,9 @@ class ProfileConfig:
                 task.enabled = True
             task.save()
 
-    def reschedule_analyze_update_follow_data_periodic_task(self, account_id: int):
+    def reschedule_update_profile_info_periodic_task(self, account_id: int):
         try:
-            task = PeriodicTask.objects.get(name=self.update_follow_task_name.format(account_id=account_id))
+            task = PeriodicTask.objects.get(name=self.update_profile_task_name.format(account_id=account_id))
         except PeriodicTask.DoesNotExist:
             pass
         else:
@@ -57,7 +56,7 @@ class ProfileConfig:
                 period=IntervalSchedule.MINUTES,
             )
             task.interval = schedule
-            task.save()
+            task.save(update_fields=("interval",))
             return next_run_time
 
 
@@ -98,9 +97,7 @@ class ProfileService:
 
     def fetch_profile_info(self, account, client: InstagramBaseClient) -> None:
         profile_info = self.load_profile_info(account, client)
-        serializer = ProfileSerializer(data=profile_info)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        Profile.objects.create(account=account, **profile_info)
 
     def fetch_followers(self, account, client: InstagramBaseClient) -> None:
         for chunk in self.load_followers(account, client):

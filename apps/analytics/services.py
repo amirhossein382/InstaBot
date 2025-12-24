@@ -16,7 +16,6 @@ from ..profiles.models import FollowerChange
 
 class AnalyticsConfig:
     daily_growth_data_task_name = "daily_growth_logs_task_{account_id}"
-    top_3_posts_task_name = "top_3_posts_task_{account_id}"
 
     @staticmethod
     def _create_schedule(days=1):
@@ -44,34 +43,6 @@ class AnalyticsConfig:
         try:
             task = PeriodicTask.objects.get(
                 name=self.daily_growth_data_task_name.format(account_id=account_id)
-            )
-        except PeriodicTask.DoesNotExist:
-            pass
-        else:
-            if pause:
-                task.enabled = False
-            else:
-                task.enabled = True
-            task.save(update_fields=("enabled",))
-
-    def create_top_posts_periodic_task(self, account_id: int):
-        task_name_ = self.top_3_posts_task_name.format(account_id=account_id)
-        schedule = self._create_schedule()
-        if not PeriodicTask.objects.filter(name=task_name_).exists():
-            PeriodicTask.objects.create(
-                interval=schedule,
-                name=task_name_,
-                task="apps.analytics.tasks.analyze_user_top_posts",
-                args=json.dumps([account_id]),
-                enabled=True,
-                one_off=False,
-                start_time=timezone.now()
-            )
-
-    def pause_or_resume_top_posts_periodic_task(self, account_id: int, pause: bool):
-        try:
-            task = PeriodicTask.objects.get(
-                name=self.top_3_posts_task_name.format(account_id=account_id)
             )
         except PeriodicTask.DoesNotExist:
             pass

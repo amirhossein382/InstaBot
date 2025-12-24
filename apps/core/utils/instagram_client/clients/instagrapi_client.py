@@ -104,7 +104,7 @@ class InstagrapiClient(InstagramBaseClient):
 
     def load_profile(self, account, **kwargs):
         data = self.client.user_info(self.get_user_id, use_cache=False).model_dump()
-        return self._clean_profile_object(data, account.pk)
+        return self._clean_profile_object(data)
 
     def load_followers_in_chunk(self, account, **kwargs):
         max_id = ""

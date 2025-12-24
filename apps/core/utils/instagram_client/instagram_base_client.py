@@ -29,8 +29,7 @@ class InstagramBaseClient(ABC):
         }
 
     @staticmethod
-    def _clean_profile_object(data, account_pk):
-        data["account"] = account_pk
+    def _clean_profile_object(data):
         data["user_pk"] = int(data["pk"])
         data["profile_pic_url"] = str(data["profile_pic_url"])
         return data

@@ -19,9 +19,10 @@ def analyze_daily_follower_growth_logs(account_id):
 
 
 @shared_task
-def analyze_user_top_posts(account_id):
-    op = analyze_user_top_posts.__name__
+def analyze_user_top_posts_and_best_time_to_post(account_id):
+    op = "analyze_user_top_posts_and_best_time_to_post"
     _logger.log_event(op, "task is running...")
     account = InstagramAccount.objects.get(pk=account_id)
     _analytics_svc.fetch_top_posts(account)
+    _analytics_svc.fetch_best_time_to_post(account)
     _logger.log_event(op, "task done.")

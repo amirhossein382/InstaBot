@@ -13,5 +13,4 @@ def create_analytics_periodic_tasks(sender, account_id, **kwargs):
     op = create_analytics_periodic_tasks.__name__
     _logger.log_event(op, "receiver is running...")
     _analyzer_svc.config.create_daily_growth_logs_periodic_task(account_id=account_id)
-    _analyzer_svc.config.create_top_posts_periodic_task(account_id=account_id)
     _logger.log_event(op, "receiver done!")
