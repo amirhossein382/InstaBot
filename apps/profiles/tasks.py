@@ -26,7 +26,6 @@ _logger = Logger()
 
 
 def _pause_account_tasks(account: InstagramAccount):
-    _profile_svc.config.pause_or_resume_analyze_growth_logs_periodic_task(account.pk, pause=True)
     _profile_svc.config.pause_or_resume_analyze_update_follow_data_periodic_task(account.pk, pause=True)
     account.is_analyses_paused = True
     account.save(update_fields=("is_analyses_paused",))
@@ -119,7 +118,7 @@ def analyze_and_update_follow_data(self, account_id):
         )
         notifications_tasks.create_notification(
             account_id=account_id, profile=None, title="Rate Limit",
-            message="Rate limit from instagram, delay analys for 1 hour",
+            message="Rate limit from instagram, delay analyses for 1 hour",
             notif_type=NotificationsTypeEnum.ERROR,
             # push=True
         )
