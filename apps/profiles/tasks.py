@@ -1,5 +1,6 @@
 from django.db.models import Q
 from django.db import transaction
+from django.utils.timezone import now
 from celery import shared_task
 
 from apps.account.models import InstagramAccount
@@ -22,6 +23,9 @@ _logger = Logger()
 
 @shared_task(bind=True, base=AuthenticatedAccountTask)
 def update_profile_info(self, account_id):
+    from datetime import timedelta
+    media_force_delta = timedelta(days=3)
+    follower_force_delta = timedelta(days=1)
     op = "update_profile_info"
     account = InstagramAccount.objects.get(pk=account_id)
     client = get_instagram_account_client(account.client_settings, account.internal_proxy)
@@ -29,10 +33,16 @@ def update_profile_info(self, account_id):
         _logger.log_event(op, f"getting profile data from instagram...")
         new_profile_info = _profile_svc.load_profile_info(account, client)
         old_profile_info = Profile.objects.get(account=account)
-        if new_profile_info["media_count"] != old_profile_info.media_count:
+        if (
+                (new_profile_info["media_count"] != old_profile_info.media_count)
+                or ((now - account.last_media_check) > media_force_delta)
+        ):
             update_user_medias.delay(account_id)
-        if ((new_profile_info["follower_count"] != old_profile_info.follower_count)
-                or (new_profile_info["following_count"] != old_profile_info.following_count)):
+        if (
+                ((new_profile_info["follower_count"] != old_profile_info.follower_count)
+                 or (new_profile_info["following_count"] != old_profile_info.following_count))
+                or ((now - account.last_followers_check) > follower_force_delta)
+        ):
             update_user_followers_followings_and_log_changes.delay(account_id)
         Profile.objects.filter(account=account).update(**new_profile_info)
     except Exception as exception:
@@ -57,7 +67,11 @@ def update_user_medias(self, account_id):
         with transaction.atomic():
             Post.objects.filter(account=account).delete()
             Post.objects.bulk_create(objs)
-        analyze_user_top_posts_and_best_time_to_post.delay(account_id)
+            account.last_media_check = now()
+            account.save(update_fields=("last_media_check",))
+            transaction.on_commit(
+                lambda: analyze_user_top_posts_and_best_time_to_post.delay(account_id)
+            )
     except Exception as exception:
         instagram_api_task_exception_handler(self, op, exception, account)
     _logger.log_event(op, "task done.")
@@ -139,33 +153,53 @@ def update_user_followers_followings_and_log_changes(self, account_id):
                 if (user_pk, change_type) not in already_changes:
                     changes.append(build_change(user_pk, change_type, source_dict))
 
-        with transaction.atomic():
-            existing_changes = set(
-                FollowerChange.objects.filter(
+        existing_changes = set(
+            FollowerChange.objects.filter(
+                account=account,
+                user_pk__in=(
+                        new_followers_set |
+                        unfollowers_set |
+                        not_back_set |
+                        mutual_set
+                )
+            ).values_list('user_pk', 'change_type')
+        )
+        append_changes(
+            new_followers_set, FollowerChangeStatusEnum.NEW_FOLLOW, new_followers_dict, existing_changes
+        )
+        append_changes(
+            unfollowers_set, FollowerChangeStatusEnum.UNFOLLOW, old_followers_dict, existing_changes
+        )
+        append_changes(
+            not_back_set, FollowerChangeStatusEnum.NOT_BACK, new_followings_dict, existing_changes
+        )
+        append_changes(
+            mutual_set, FollowerChangeStatusEnum.MUTUAL, new_followings_dict, existing_changes
+        )
+        if new_followers_set:
+            new_follower_objs = [
+                Follower(
                     account=account,
-                    user_pk__in=(
-                            new_followers_set |
-                            unfollowers_set |
-                            not_back_set |
-                            mutual_set
-                    )
-                ).values_list('user_pk', 'change_type')
-            )
-
-            # Add new changes
-            append_changes(
-                new_followers_set, FollowerChangeStatusEnum.NEW_FOLLOW, new_followers_dict, existing_changes
-            )
-            append_changes(
-                unfollowers_set, FollowerChangeStatusEnum.UNFOLLOW, old_followers_dict, existing_changes
-            )
-            append_changes(
-                not_back_set, FollowerChangeStatusEnum.NOT_BACK, new_followings_dict, existing_changes
-            )
-            append_changes(
-                mutual_set, FollowerChangeStatusEnum.MUTUAL, new_followings_dict, existing_changes
-            )
-
+                    user_pk=pk,
+                    username=data["username"],
+                    full_name=data.get("full_name", ""),
+                    profile_pic_url=data.get("profile_pic_url", ""),
+                )
+                for pk, data in new_followers_dict.items() if pk in new_followers_set
+            ]
+        if new_followings_set:
+            _logger.log_event(op, "updating user new followings ...")
+            new_following_objs = [
+                Following(
+                    account=account,
+                    user_pk=pk,
+                    username=data["username"],
+                    full_name=data.get("full_name", ""),
+                    profile_pic_url=data.get("profile_pic_url", ""),
+                )
+                for pk, data in new_followings_dict.items() if pk in new_followings_set
+            ]
+        with transaction.atomic():
             if changes:
                 _logger.log_event(op, "adding user new changes...")
                 bulk_insert_in_batches(FollowerChange, changes)
@@ -191,31 +225,11 @@ def update_user_followers_followings_and_log_changes(self, account_id):
             # Add new followers
             if new_followers_set:
                 _logger.log_event(op, "updating user new followers ...")
-                new_follower_objs = [
-                    Follower(
-                        account=account,
-                        user_pk=pk,
-                        username=data["username"],
-                        full_name=data.get("full_name", ""),
-                        profile_pic_url=data.get("profile_pic_url", ""),
-                    )
-                    for pk, data in new_followers_dict.items() if pk in new_followers_set
-                ]
                 bulk_insert_in_batches(Follower, new_follower_objs)
 
             # Add new followings
             if new_followings_set:
                 _logger.log_event(op, "updating user new followings ...")
-                new_following_objs = [
-                    Following(
-                        account=account,
-                        user_pk=pk,
-                        username=data["username"],
-                        full_name=data.get("full_name", ""),
-                        profile_pic_url=data.get("profile_pic_url", ""),
-                    )
-                    for pk, data in new_followings_dict.items() if pk in new_followings_set
-                ]
                 bulk_insert_in_batches(Following, new_following_objs)
 
             # Remove expire follower, following
@@ -225,3 +239,5 @@ def update_user_followers_followings_and_log_changes(self, account_id):
             if unfollowings_set:
                 _logger.log_event(op, "deleting user expire followings...")
                 Following.objects.filter(account=account, user_pk__in=unfollowings_set).delete()
+            account.last_followers_check = now()
+            account.save(update_fields=("last_followers_check",))
