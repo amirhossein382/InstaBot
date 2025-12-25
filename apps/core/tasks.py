@@ -142,6 +142,13 @@ def pause_all_account_periodic_tasks(account: InstagramAccount):
     account.save(update_fields=("is_analyses_paused",))
 
 
+def resum_all_account_periodic_tasks(account: InstagramAccount):
+    _profile_svc.config.pause_or_resume_update_profile_info_periodic_task(account.pk, pause=False)
+    _analytics_svc.config.pause_or_resume_daily_growth_logs_periodic_task(account.pk, pause=False)
+    account.is_analyses_paused = False
+    account.save(update_fields=("is_analyses_paused",))
+
+
 @shared_task
 def apply_sync_resume_all_account_tasks(account_id):
     _profile_svc.config.pause_or_resume_update_profile_info_periodic_task(account_id, False)

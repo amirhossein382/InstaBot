@@ -1,0 +1,429 @@
+[33mcommit b2970812693faf1a9dcf4fc59741bd7aa5a4975c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mimplement-analyzer-app[m[33m)[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Wed Dec 24 14:50:41 2025 +0330
+
+    Added big changes to analyses.
+    -Created seperate update_profile_info, update_user_medias tasks.
+    -Start analyses based on profile_info parameters changes.
+    -Remove Profile Serializer from tasks or saving data in model.
+    -Run analyze best_time_top/top_posts when medias updated.
+    -Remove account_pk from _clean_profile_object in InstagramBaseClient.
+    -Created AuthenticatedAccountTask for check user authentication before
+    running task.
+    -Imlemented instagram_api_task_exception_handler for handle api erros in
+    tasks.
+    -Some more little changes...
+
+[33mcommit 9b20119e467db6d65202996c06c966404f79d10f[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Wed Dec 24 12:30:55 2025 +0330
+
+    Implemented AuthenticatedAccountTask for authentication check before start tasks.
+
+[33mcommit 0c3105c8fb372c8f25b428024d2d6263c3f184aa[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Wed Dec 24 11:45:53 2025 +0330
+
+    Implemented best time to post APIView.
+
+[33mcommit d45bd0bd2b026e79bcf812f970c8e7b3fb1493c4[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Tue Dec 23 14:01:14 2025 +0330
+
+    Implemented fetch_best_time_to_post, BestTimeStats model and BestPostTimeStatesSerializer.
+
+[33mcommit f7ddebbce02e1d0d3262ae5cc5fba0377f544709[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Tue Dec 23 13:03:16 2025 +0330
+
+    Fix analyze_user_top_posts and create_top_posts_periodic_task syntax erros.
+
+[33mcommit 4830c0ede9cfeb8eb70a20743f917d10f6f61a82[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Tue Dec 23 12:47:52 2025 +0330
+
+    Implemented TopPostList/TopPostDetail APIViews.
+
+[33mcommit d69b6e04cfd6fd8d219c5f29aab91f1898c59dbe[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Tue Dec 23 12:06:39 2025 +0330
+
+    Added media_pk field to Post model and seted unique constraints to account,media_pk.implemented media_pk in _clean_media_object.
+
+[33mcommit b4e875e2bbd65bce41debbf003e3a6ddcc96a318[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Tue Dec 23 12:02:20 2025 +0330
+
+    Implemented Post/TopPost Serializers.
+
+[33mcommit 9492875a8fc904d6bd647580c91ed760755e5ed9[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Tue Dec 23 11:47:07 2025 +0330
+
+    Implemented fetch_top_posts in AnalyticsService and refactored _calculate_top_posts with new changes.
+
+[33mcommit 463ddf0857b96212a90ff617448117d04f2bd5a1[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Mon Dec 22 19:25:30 2025 +0330
+
+    Removed get_top_posts from InstagrapiClient and InstagramBaseClient.
+
+[33mcommit 830121c79caceed63e8f0cfd47dee49731c8d147[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Mon Dec 22 19:06:44 2025 +0330
+
+    Added fetch_medias step to AccountInitialAPIView.
+
+[33mcommit a64a3229ed2c2822b64061fe92c0e00047fef6fe[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Mon Dec 22 18:58:42 2025 +0330
+
+    Added _clean_media_object in InstagramBaseClient and used it in InstagrapiClient.get_user_posts_in_chunk.
+
+[33mcommit 262b42dd424ed0295e7f6a2c8fc4b1ab4a02b36e[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Mon Dec 22 18:44:04 2025 +0330
+
+    Implemented load_user_posts/fetch_medias in ProfileService.
+
+[33mcommit 16a2954d40934b2c8efd538ffb7ed13ab9c59870[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Mon Dec 22 18:38:20 2025 +0330
+
+    added get_user_posts_in_chunk in InstagramBaseClient and implemented it in InstagrapiClient
+
+[33mcommit 04343098fd0a6d8f392dd6a8695b901666b78982[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Mon Dec 22 18:02:07 2025 +0330
+
+    Implmented Post model in profiles.models and created PostTypeEnum in enums.profile_enums
+
+[33mcommit 97d67092a61df1f47ffa6752c8e2455fce71640d[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Mon Dec 22 13:03:35 2025 +0330
+
+    Implemented get_follower_summary in AnalyticsService and Implemented FollowerSummaryAPIView.
+
+[33mcommit b56a558e9ee25401313ec943e3702b53a25be9d4[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Sat Dec 20 19:41:51 2025 +0330
+
+    Implemented analyze_user_top_posts task
+
+[33mcommit 350546f27fc7b0d48feb4ef954e61c14f98d816c[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Sat Dec 20 18:30:08 2025 +0330
+
+    Added get_top_posts method in InstagramBaseClient and implemented in InstagrapiClient.
+
+[33mcommit dfa36880d7cc8024d04676910587d87254f3867d[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Sat Dec 20 18:23:51 2025 +0330
+
+    Created TopPost model in analytics models.py
+
+[33mcommit a069036144f6482f9edfb7df45c407193d4b1dac[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Sat Dec 20 18:12:31 2025 +0330
+
+    Remove analytics create/pause_or_resume methods, receivers from profiles app and moved to analytics app
+
+[33mcommit c1f254f681e288d439696471adf1171d09c20c0d[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Sat Dec 20 17:47:47 2025 +0330
+
+    Change AccountGrowthLog model name to DailyFollowerGrowthLog and moved
+    to analytics app with views,serializer, task and services.
+
+[33mcommit 80af39b1ddbb5a5035a53ff1db7c05d4ad527b67[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Sat Dec 20 13:53:53 2025 +0330
+
+    Created analytics app and added to django apps.
+
+[33mcommit 446b34964c675c293af5553f8ae3b1574cdce0ea[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/beta-v2-backend-version[m[33m, [m[1;32mmaster[m[33m, [m[1;32mbeta-v2-backend-version[m[33m)[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Fri Dec 19 12:32:36 2025 +0330
+
+    fix reported bugs and implemented isseus.
+
+[33mcommit 1f8614129d8a120c275399c212ad95f633fbfa47[m
+Author: Amirhossein <134320843+amirhossein382@users.noreply.github.com>
+Date:   Wed Dec 17 18:27:32 2025 +0330
+
+    Wrap instagram api providers in InstagramClient
+    
+    - Create the InstagramBaseClient class and implement the InstagrapiClient. Additionally, add INSTAGRAM_CLIENT to the project settings.
+    
+    - Created an exception_mapper to synchronize with future package errors.
+    - Developed a unified exception handling mechanism.
+    - Refactored login_view for improved error management and clarity.
+    
+    - Removed UnfollowAPIView.
+    - Sync profile service load profile/follower/followin methods with ClientAdapter.
+    - Update AccountInitialAPIView with ClientAdapter
+    
+    - Implemented InstagramActionBlocked/InstagramUnauthorized exceptions.
+    - Update profile tasks to incorporate changes from ClientAdapter
+    
+    - Implemented InstagramMediaError/InstagramMediaNotFound/InstagramUnknownMediaUrlType exceptions.
+    - Implemented resolve_media_url methods in InstagramBaseClient.
+    - Update downloader service/exception/views with ClientAdaper changes
+    
+    * fix 'manage.py check' isseus
+    
+    * Add detail parameter to the init method of InstagramError base class
+    -This change allows us to use a dynamic error message instead of the default_message, improving our ability to track and identify the reasons for errors.
+    
+    - Added INSTAGRAM_PROVIDER in .env file.
+    - Refactor requiremetns.txt to requirements/base.txt and provider_package_name.txt.
+    - Made necessary changes in Docker and Docker Compose files to dynamically install packages based on the provided provider.
+
+[33mcommit 4b485b10de590f084ee422ee2326b54150757090[m[33m ([m[1;31morigin/use-instaloader-instead-of-instagram-api[m[33m)[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Thu Nov 20 17:56:08 2025 +0330
+
+    removed task feature
+
+[33mcommit 1b911567d517daab5d8632ef0c4417a4bd8592cd[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Thu Nov 20 17:47:16 2025 +0330
+
+    revert jwt authentication backend to session authentication for app testings in beta 2 upgrading
+
+[33mcommit fff11287869354a257332fe0859a06bbbf30ea0d[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/beta-1-branch[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m, [m[1;32mbeta-1-branch[m[33m)[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Thu Nov 20 17:30:15 2025 +0330
+
+    refactor external proxy to internal that set by admin users not normally users directly
+
+[33mcommit 4cd19e8f9c077f6a9d6edd61b1386c7e408e0806[m[33m ([m[1;33mtag: [m[1;33mv1.1.0.beta[m[33m)[m
+Author: Amirhossein <134320843+amirhossein382@users.noreply.github.com>
+Date:   Wed Oct 22 12:18:54 2025 +0330
+
+    implemented downloader app (#2)
+
+[33mcommit 16d3581e55d680e59ff7a70dc4c13ddeed526e71[m
+Merge: f39b53a 1362074
+Author: Amirhossein <134320843+amirhossein382@users.noreply.github.com>
+Date:   Wed Oct 8 12:55:31 2025 +0330
+
+    Merge pull request #1 from amirhossein382/refactor-models-and-improve-code-style-and-performance
+    
+    improve account initial and analyze_follow_data task performace
+
+[33mcommit 13620743e7046e9cbcae2648743e217d8862ab2a[m[33m ([m[1;31morigin/refactor-models-and-improve-code-style-and-performance[m[33m)[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Wed Oct 8 12:50:13 2025 +0330
+
+    add .iterator query to followers/followings queries in analyze_follower_changes method
+
+[33mcommit f0a4792b31d7b2e8a8c81fc2c62335fea3f9a247[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Wed Oct 8 12:42:06 2025 +0330
+
+    improve analyze_and_update_follow_data task memory usage
+
+[33mcommit 9ac3ec910bf194263757fa21f8cbb34435d529c1[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Tue Oct 7 14:40:34 2025 +0330
+
+    load followers and followings using pagination
+
+[33mcommit b5a1981c5fcc7dc2743b195990d23e3259e8ef42[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Tue Oct 7 11:57:05 2025 +0330
+
+    improve account initial methods perfirmance
+
+[33mcommit b11f0da0f7e2b4a1069e3e28ce8e23c806c554ae[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Sat Oct 4 13:31:08 2025 +0330
+
+    refactor some models and .gitignore and uncomment last exception on follow_data_task
+
+[33mcommit f39b53ab0ef6abafffecd9892a33d8dd198dff96[m[33m ([m[1;33mtag: [m[1;33mv1.0.1.beta[m[33m, [m[1;31morigin/improveAccountInitaial[m[33m)[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Fri Oct 3 13:48:51 2025 +0330
+
+    Configuring JWT for authentication
+
+[33mcommit e1e01ceee493f6703882764948c4336d080154cf[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Sun Sep 21 14:24:15 2025 +0330
+
+    encrypted client_settings field and imporove admin page/permissions
+
+[33mcommit 64a302ee66fa92deaadae6776858b60512b5bc9a[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Mon Sep 15 15:16:06 2025 +0330
+
+    fix important issues about proxy errors like catch ProxyError on follow_data_task
+
+[33mcommit 299d83bac694ce4a76b3558107cb47b8a9855fcb[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Sun Aug 24 13:41:27 2025 +0330
+
+    implemented push notification code and model for notifying
+
+[33mcommit f4368f24e983174dc6b03dd288c0cb8b28f119c7[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Sat Aug 23 13:37:28 2025 +0330
+
+    fix InstagramAccount insatnce on create notifications
+
+[33mcommit e0de4cef422d3f7cdff758607bc2f390c3b6609c[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Sat Aug 23 13:13:49 2025 +0330
+
+    added reschedule for task and fix json error in login view when insta session is not valid
+
+[33mcommit 116d3e8b469644477d7d33414b8f1a61ae301ff8[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Fri Aug 22 12:58:57 2025 +0330
+
+    improve profile_task code
+
+[33mcommit afd09786dea82026bbb2c5f1ba10d59cc5a47d7c[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Sun Aug 3 00:00:29 2025 +0330
+
+    add proxy option to application
+
+[33mcommit 8c0c8c1b665d3f2e54240c0a75fce5662921afb9[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Wed Jul 30 14:49:03 2025 +0330
+
+    implemented proxy app
+
+[33mcommit ad060e26bd45f86b0bc7f2b7948d3304babe0ffa[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Wed Jul 30 12:01:14 2025 +0330
+
+    fix important bugs like analyzer bugs,models user_pk fields and more..
+
+[33mcommit 954f1b798899dc76f77d45d396a3c07ac891cd26[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Fri Jul 25 23:49:44 2025 +0330
+
+    refactor some codesa and improve update_or_follow analyses task
+
+[33mcommit 36869dd2f1def74a7875c004fdcd7a9ab98dae02[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Fri Jul 25 14:53:34 2025 +0330
+
+    implemented followin unfollow view
+
+[33mcommit b7e6b20490c1970b04e075768b0a84373f105c73[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Fri Jul 25 14:30:20 2025 +0330
+
+    fix importent isseus/bugs
+
+[33mcommit eb58958d6cc54cdb48d703df3e8906c4bd944d3f[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Thu Jul 24 18:34:12 2025 +0330
+
+    use push notif on some tasks
+
+[33mcommit d847f655bd28e1f4d82a09cdbb234808cb3827b1[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Thu Jul 24 18:13:58 2025 +0330
+
+    implemented push notif service
+
+[33mcommit fbed0090399599950e7d6de07670bc4433cc7a1c[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Wed Jul 23 15:45:02 2025 +0330
+
+    implemented notif app
+
+[33mcommit f1840392ab304101e3a2bb64bae8fbb45874eb0f[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Wed Jul 23 13:40:06 2025 +0330
+
+    handle profile periodic tasks exceptions
+
+[33mcommit ca6afd469d54b0f156e93cc7da3cb9c404fb58ee[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Tue Jul 22 14:05:54 2025 +0330
+
+    implemented get_client in account_config instead of self.client on class attr
+
+[33mcommit e2cce239e6fe811a1088ba6139e567acedd860eb[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Tue Jul 22 13:00:04 2025 +0330
+
+    fix task app issues
+
+[33mcommit 809a9055842140058d148bdc837399b126909eac[m
+Author: amirhossein <amirhossein109020@gmail.com>
+Date:   Tue Jul 22 12:50:50 2025 +0330
+
+    sync django/ig login. pause tasks instead of deletting. resum tasks on relogin. pause tasks on logout and more
+
+[33mcommit a94bab43f3ccb688b1468087ba33a2237d5f0ce0[m[33m ([m[1;33mtag: [m[1;33mv1.0.0.beta[m[33m)[m
+Author: CyrusG <amirhossein109020@gmail.com>
+Date:   Sun Jun 8 14:22:44 2025 +0330
+
+    first beta version
+
+[33mcommit 60fbeedf7d224fc388efade9e4de2f974a5f91fa[m
+Author: CyrusG <amirhossein109020@gmail.com>
+Date:   Sun Jun 8 13:29:08 2025 +0330
+
+    fix missing issues and bugs
+
+[33mcommit b75886f66e2900b30424dd76dfdec94a51f64fd7[m
+Author: CyrusG <amirhossein109020@gmail.com>
+Date:   Sat Jun 7 13:36:29 2025 +0330
+
+    use client.uuids if user exists in login and update_or_create InstagramAccount instead of get_or_create
+
+[33mcommit d5277ebd6d7c09dbba5a6cf46a7817a691d9f3ec[m
+Author: CyrusG <amirhossein109020@gmail.com>
+Date:   Sat Jun 7 12:59:51 2025 +0330
+
+    implemented logging config and utils
+
+[33mcommit a0029385d09378f59aad90337b354eab46abaef8[m
+Author: CyrusG <amirhossein109020@gmail.com>
+Date:   Thu Jun 5 13:47:58 2025 +0330
+
+    implemented apps model admins
+
+[33mcommit cb78b48d2142eaeca57ce441538defdd6a7761a4[m
+Author: CyrusG <amirhossein109020@gmail.com>
+Date:   Thu Jun 5 12:51:15 2025 +0330
+
+    implemented task app
+
+[33mcommit 601e9c6f3189f9a9d5c18976fd4bdbd71010728a[m
+Author: CyrusG <amirhossein109020@gmail.com>
+Date:   Wed Jun 4 18:10:27 2025 +0330
+
+    fix account and profile errors and made InstagramAccount model to use instead of UserModel
+
+[33mcommit 1c4a365dc83f2b54fdbc43785816d67a537e86ed[m
+Author: CyrusG <amirhossein109020@gmail.com>
+Date:   Tue Jun 3 12:05:18 2025 +0330
+
+    implemented initial view, and profiles app for showing result and periodic analyses
+
+[33mcommit 1178dd99b854eefdaebe3528902d546a13dbb3a5[m
+Author: CyrusG <amirhossein109020@gmail.com>
+Date:   Fri May 30 13:42:59 2025 +0330
+
+    implemented login/logout view
+
+[33mcommit 4395158a16207f46d74592532e7aa4d90a8d1072[m
+Author: CyrusG <amirhossein109020@gmail.com>
+Date:   Wed May 28 19:25:17 2025 +0330
+
+    prepare packages and configs to start
+
+[33mcommit b41775d34a45fdcdfb1ed51fc4e6d26c584d67e1[m
+Author: CyrusG <amirhossein109020@gmail.com>
+Date:   Sun May 25 20:26:58 2025 +0330
+
+    first commit

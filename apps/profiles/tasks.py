@@ -107,17 +107,10 @@ def update_user_followers_followings_and_log_changes(self, account_id):
         new_follower_pks = set(new_followers_dict.keys())
         new_following_pks = set(new_followings_dict.keys())
 
-        _logger.log_event(op, f"new follower pks-->{new_follower_pks}")
-        _logger.log_event(op, f"old follower pks-->{old_follower_pks}")
-        _logger.log_event(op, f"new following pks-->{new_following_pks}")
-        _logger.log_event(op, f"old following pks-->{old_following_pks}")
-
         new_followers_set = new_follower_pks - old_follower_pks
         unfollowers_set = old_follower_pks - new_follower_pks
-
         new_followings_set = new_following_pks - old_following_pks
         unfollowings_set = old_following_pks - new_following_pks
-
         mutual_set = new_follower_pks.intersection(new_following_pks)
         not_back_set = new_following_pks - new_follower_pks
 
