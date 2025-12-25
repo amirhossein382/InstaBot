@@ -93,3 +93,5 @@ class InstagramAccount(BaseTimeStampedModel):
     )
     is_initialized = models.BooleanField(default=False)
     is_analyses_paused = models.BooleanField(default=False, editable=False)
+    last_media_check = models.DateTimeField(null=True, blank=True)
+    last_followers_check = models.DateTimeField(null=True, blank=True)

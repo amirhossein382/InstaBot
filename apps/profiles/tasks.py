@@ -51,9 +51,12 @@ def update_user_medias(self, account_id):
     account = InstagramAccount.objects.get(pk=account_id)
     client = get_instagram_account_client(account.client_settings, account.internal_proxy)
     try:
+        objs = []
+        for chunk in _profile_svc.load_user_posts(account, client):
+            objs.extend(Post(account=account, **item) for item in chunk)
         with transaction.atomic():
             Post.objects.filter(account=account).delete()
-            _profile_svc.fetch_medias(account, client)
+            Post.objects.bulk_create(objs)
         analyze_user_top_posts_and_best_time_to_post.delay(account_id)
     except Exception as exception:
         instagram_api_task_exception_handler(self, op, exception, account)
