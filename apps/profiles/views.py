@@ -5,14 +5,11 @@ from apps.account.models import InstagramAccount
 from apps.account.exceptions import base_response_with_error
 from apps.enums import FollowerChangeStatusEnum
 from .services import ProfileService
-from .models import (
-    Following, Follower, FollowerChange, Profile,
-    AccountGrowthLog
-)
+from .models import Following, Follower, FollowerChange, Profile
+
 from .serializers import (
     FollowingSerializer, FollowerSerializer,
     FollowerChangeSerializer, ProfileSerializer,
-    AccountGrowthLogSerializer
 )
 
 profile_svc = ProfileService()
@@ -94,21 +91,4 @@ class FollowerChangesView(views.APIView):
             return base_response_with_error(str(err), status.HTTP_404_NOT_FOUND)
 
         serializer = FollowerChangeSerializer(follower_changes, many=True)
-        return Response(serializer.data)
-
-
-class AccountGrowthLogView(views.APIView):
-    serializer_class = AccountGrowthLogSerializer
-
-    def get_queryset(self):
-        account = InstagramAccount.objects.get(user=self.request.user)
-        return AccountGrowthLog.objects.filter(account=account)
-
-    def get(self, request, *args, **kwargs):
-        try:
-            logs = self.get_queryset()
-        except InstagramAccount.DoesNotExist as err:
-            return base_response_with_error(str(err), status.HTTP_404_NOT_FOUND)
-
-        serializer = AccountGrowthLogSerializer(logs, many=True)
         return Response(serializer.data)

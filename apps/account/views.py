@@ -3,7 +3,9 @@
 from django.contrib.auth import get_user_model, login, logout
 # from django.contrib.auth.signals import user_logged_in, user_logged_out
 # from django.contrib.auth import get_user_model
+
 from django.contrib.auth.hashers import make_password
+from django.utils.timezone import now
 from django.db import transaction
 from rest_framework.response import Response
 from rest_framework import status
@@ -131,6 +133,8 @@ class AccountInitialAPIView(APIView):
             with transaction.atomic():
                 _logger.log_event(self.__class__.__name__, log_data="fetching profile..")
                 profile_svc.fetch_profile_info(account, client)
+                _logger.log_event(self.__class__.__name__, log_data="fetching posts..")
+                profile_svc.fetch_medias(account, client)
                 _logger.log_event(self.__class__.__name__, log_data="fetching followers..")
                 profile_svc.fetch_followers(account, client)
                 _logger.log_event(self.__class__.__name__, log_data="fetching followings..")
@@ -138,7 +142,11 @@ class AccountInitialAPIView(APIView):
                 _logger.log_event(self.__class__.__name__, log_data="fetching analyses..")
                 profile_svc.analyze_follower_changes(account=account)
                 account.is_initialized = True
-                account.save(update_fields=("is_initialized",))
+                account.last_followers_check = now()
+                account.last_media_check = now()
+                account.save(
+                    update_fields=("is_initialized", "last_followers_check", "last_media_check")
+                )
                 transaction.on_commit(lambda: profile_initialized.send(
                     sender=self.__class__.__name__, account_id=account.pk
                 ))
@@ -149,7 +157,9 @@ class AccountInitialAPIView(APIView):
             )
         except Exception as msg:
             err_cls = msg.__class__.__name__
-            _logger.log_event(self.__class__.__name__, log_data=f"Error {err_cls}: {str(msg)}", level="WARNING")
+            _logger.log_event(
+                self.__class__.__name__, log_data=f"Error {err_cls}: {str(msg)}", level="WARNING"
+            )
             return base_response_with_error(
                 msg="Initialization failed for unknown error!",
                 _status=status.HTTP_500_INTERNAL_SERVER_ERROR

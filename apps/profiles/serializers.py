@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from apps.enums import FollowerChangeStatusEnum
-from .models import Profile, Follower, Following, FollowerChange, AccountGrowthLog
+from .models import Profile, Follower, Following, FollowerChange, Post
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -46,7 +46,7 @@ class FollowerChangeSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class AccountGrowthLogSerializer(serializers.ModelSerializer):
+class PostSerializer(serializers.ModelSerializer):
     class Meta:
-        model = AccountGrowthLog
-        fields = ("date", "followers_count", "created_at")
+        model = Post
+        fields = '__all__'

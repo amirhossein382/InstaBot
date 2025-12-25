@@ -104,7 +104,7 @@ class InstagrapiClient(InstagramBaseClient):
 
     def load_profile(self, account, **kwargs):
         data = self.client.user_info(self.get_user_id, use_cache=False).model_dump()
-        return self._clean_profile_object(data, account.pk)
+        return self._clean_profile_object(data)
 
     def load_followers_in_chunk(self, account, **kwargs):
         max_id = ""
@@ -159,6 +159,24 @@ class InstagrapiClient(InstagramBaseClient):
                 return self.config.resolve_story_url(url, self.client)
             case _:
                 raise UnknownMediaUrlType()
+
+    def get_user_posts_in_chunk(self):
+        end_cursor = None
+        page_size = 12
+
+        while True:
+            medias, end_cursor = self.client.user_medias_paginated(
+                self.get_user_id,
+                amount=page_size,
+                end_cursor=end_cursor
+            )
+            if not medias:
+                break
+            cleaned_medias = [self._clean_media_object(media) for media in medias]
+
+            yield cleaned_medias
+            if not end_cursor:
+                break
 
     def login(self, username: str, password: str, proxy: str, **kwargs):
         op = self.op + ".login"

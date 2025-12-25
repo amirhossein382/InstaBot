@@ -57,6 +57,7 @@ CUSTOM_APPS = [
     'apps.notifications.apps.NotificationsConfig',
     'apps.proxy.apps.ProxyConfig',
     'apps.downloader.apps.DownloaderConfig',
+    'apps.analytics.apps.AnalyticsConfig',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + CUSTOM_APPS

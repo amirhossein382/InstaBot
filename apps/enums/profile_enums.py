@@ -15,3 +15,17 @@ class FollowerChangeStatusEnum:
         (NOT_BACK, _("Not Following Back")),
         (MUTUAL, _("Mutual Follow")),
     )
+
+
+class PostTypeEnum:
+    PHOTO = 1
+    VIDEO = 2
+    ALBUM = 8
+
+    ALL_TOPICS = (PHOTO, VIDEO, ALBUM)
+
+    CHOICES = (
+        (PHOTO, _("Photo")),
+        (VIDEO, _("Video")),
+        (ALBUM, _("Album")),
+    )
